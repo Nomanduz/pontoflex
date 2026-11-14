@@ -17,6 +17,9 @@ const pasta = join("drizzle", "migrations");
 
 try {
   await sql`create table if not exists public._migracoes (nome text primary key, aplicada_em timestamptz not null default now())`;
+  // Tabela interna: fora do alcance da API pública do Supabase.
+  await sql`alter table public._migracoes enable row level security`;
+  await sql`revoke all on public._migracoes from anon, authenticated`;
   const feitas = new Set(
     (await sql<{ nome: string }[]>`select nome from public._migracoes`).map((r) => r.nome),
   );
