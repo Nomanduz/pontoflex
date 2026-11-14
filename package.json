@@ -4,10 +4,8 @@
   "sideEffects": false,
   "type": "module",
   "scripts": {
-    "predev": "node scripts/copiar-mediapipe.mjs",
-    "dev": "vite dev",
-    "prebuild": "node scripts/copiar-mediapipe.mjs",
-    "build": "vite build",
+    "dev": "node scripts/copiar-mediapipe.mjs && vite dev",
+    "build": "node scripts/copiar-mediapipe.mjs && vite build",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
