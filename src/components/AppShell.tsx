@@ -5,7 +5,13 @@ import { Brand } from "@/components/Brand";
 import { Button } from "@/components/ui/button";
 import { useSignOut } from "@/hooks/use-sign-out";
 
-export function AppShell({ links, children }: { links: { to: string; label: string }[]; children: ReactNode }) {
+export function AppShell({
+  links,
+  children,
+}: {
+  links: { to: string; label: string }[];
+  children: ReactNode;
+}) {
   const signOut = useSignOut();
   return (
     <div className="min-h-screen bg-background">

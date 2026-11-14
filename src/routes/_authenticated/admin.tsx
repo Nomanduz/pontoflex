@@ -3,6 +3,7 @@ import { AppShell } from "@/components/AppShell";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   beforeLoad: ({ context }) => {
+    if (context.papel === "superadmin") throw redirect({ to: "/nomanduz" });
     if (context.papel !== "admin") throw redirect({ to: "/ponto" });
   },
   component: () => (

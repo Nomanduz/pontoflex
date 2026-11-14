@@ -126,14 +126,26 @@ export function formatDuration(ms: number): string {
 }
 
 export function formatTime(d: string | Date): string {
-  return new Intl.DateTimeFormat("pt-BR", { timeZone: TZ, hour: "2-digit", minute: "2-digit" }).format(new Date(d));
+  return new Intl.DateTimeFormat("pt-BR", {
+    timeZone: TZ,
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(d));
 }
 
-export function formatDate(d: string | Date, opts: Intl.DateTimeFormatOptions = { dateStyle: "short" }): string {
+export function formatDate(
+  d: string | Date,
+  opts: Intl.DateTimeFormatOptions = { dateStyle: "short" },
+): string {
   return new Intl.DateTimeFormat("pt-BR", { timeZone: TZ, ...opts }).format(new Date(d));
 }
 
-export function formatKey(key: string, opts: Intl.DateTimeFormatOptions = { weekday: "short", day: "2-digit", month: "2-digit" }): string {
+export function formatKey(
+  key: string,
+  opts: Intl.DateTimeFormatOptions = { weekday: "short", day: "2-digit", month: "2-digit" },
+): string {
   const [y = 1970, m = 1, d = 1] = key.split("-").map(Number);
-  return new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC", ...opts }).format(new Date(Date.UTC(y, m - 1, d, 12)));
+  return new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC", ...opts }).format(
+    new Date(Date.UTC(y, m - 1, d, 12)),
+  );
 }

@@ -1,50 +1,331 @@
+// @vitest-environment node
+/* eslint-disable @typescript-eslint/no-explicit-any -- mocks de teste */
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { criarFakeSupabase } from "@/test/fake-supabase";
 
-const mocks = vi.hoisted(() => ({ compare: vi.fn(), admin: { from: vi.fn(), storage: { from: vi.fn() } } }));
-vi.mock("@tanstack/react-start", () => ({ createServerFn: () => {
-  const builder = { inputValidator: () => builder, middleware: () => builder, handler: (handler: unknown) => handler };
-  return builder;
-} }));
+process.env["APP_SECRET"] = "segredo-de-teste-com-mais-de-32-caracteres!!";
+
+const mocks = vi.hoisted(() => ({
+  admin: null as any,
+  buscarRosto: vi.fn(),
+  senhaConfere: vi.fn(),
+  entrarComSenha: vi.fn(),
+}));
+
+// createServerFn de teste: executa o validador e depois o handler, como o TanStack Start faz.
+vi.mock("@tanstack/react-start", () => ({
+  createServerFn: () => {
+    let validar: ((d: unknown) => unknown) | undefined;
+    const b: any = {
+      middleware: () => b,
+      validator: (v: (d: unknown) => unknown) => {
+        validar = v;
+        return b;
+      },
+      handler:
+        (h: (a: unknown) => unknown) =>
+        async (args: { data?: unknown; context?: unknown } = {}) =>
+          h({ data: validar ? validar(args.data) : args.data, context: args.context }),
+    };
+    return b;
+  },
+}));
+vi.mock("@tanstack/react-start/server", () => ({ getRequestHeader: () => undefined }));
 vi.mock("@/integrations/supabase/auth-middleware", () => ({ requireSupabaseAuth: {} }));
-vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: mocks.admin }));
-vi.mock("./face.server", () => ({ compararRostos: mocks.compare, sha256: async () => "hash", bytesToDataUrl: () => "data:image/jpeg;base64,ref" }));
-import { identificarRosto } from "./terminal.functions";
+vi.mock("@/integrations/supabase/client.server", () => ({
+  get supabaseAdmin() {
+    return mocks.admin;
+  },
+}));
+vi.mock("@/integrations/supabase/auth-check.server", () => ({
+  senhaConfere: mocks.senhaConfere,
+  entrarComSenha: mocks.entrarComSenha,
+}));
+vi.mock("./face.server", async (orig) => ({
+  ...(await orig<typeof import("./face.server")>()),
+  buscarRosto: mocks.buscarRosto,
+}));
 
-const identify = identificarRosto as unknown as (args: { data: { cnpj: string; senha: string; imagem: string } }) => Promise<{ encontrado: { id: string } | null }>;
-const input = { data: { cnpj: "company", senha: "password", imagem: "data:image/jpeg;base64,selfie" } };
+import { hashSenha, assinarToken } from "./seguranca.server";
+import * as T from "./terminal.functions";
 
-function employees(rows: { id: string; foto_path: string }[]) {
-  mocks.admin.from.mockImplementation((table: string) => {
-    if (table === "empresas") return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { id: "company", senha_mestra_leitura: "hash" } }) }) }) };
-    if (table === "terminal_logs") return { insert: vi.fn().mockResolvedValue({ error: null }) };
-    const query = { select: () => query, eq: () => query, not: async () => ({ data: rows, error: null }) };
-    return query;
+const fn = <A, R>(f: unknown) => f as (a: { data: A; context?: unknown }) => Promise<R>;
+const desbloquear = fn<{ documento: string; senha: string }, { token: string; modo: string }>(
+  T.desbloquearTerminal,
+);
+const identificar = fn<{ token: string; imagem: string }, { encontrado: any }>(T.identificarRosto);
+const confirmar = fn<
+  { token: string; confirmacao: string; latitude: number; longitude: number },
+  { tipo: string; nome: string }
+>(T.confirmarPontoTerminal);
+const cadastrarRosto = fn<any, { ok: boolean }>(T.cadastrarRostoTerminal);
+const login = fn<{ documento: string; matricula: string; senha: string }, { access_token: string }>(
+  T.loginPorMatricula,
+);
+
+const EMP = "emp-1";
+const SELFIE = "data:image/jpeg;base64,/9j/AAAA";
+const SP = { latitude: -23.55, longitude: -46.63 };
+
+function cenario(extra: { raio_m?: number } = {}) {
+  mocks.admin = criarFakeSupabase({
+    empresas: [
+      {
+        id: EMP,
+        documento: "11.222.333/0001-81",
+        razao_social: "Padaria",
+        senha_mestra_leitura: hashSenha("leitura123"),
+        senha_mestra_cadastro: hashSenha("cadastro123"),
+        latitude: SP.latitude,
+        longitude: SP.longitude,
+        raio_m: extra.raio_m ?? null,
+      },
+    ],
+    funcionarios: [
+      {
+        id: "f-ana",
+        empresa_id: EMP,
+        nome: "Ana Souza",
+        matricula: "A01",
+        cpf: "111.444.777-35",
+        ativo: true,
+        foto_status: "aprovada",
+        foto_path: "x",
+      },
+      {
+        id: "f-novo",
+        empresa_id: EMP,
+        nome: "Caio",
+        matricula: "C03",
+        cpf: "935.411.347-80",
+        ativo: true,
+        foto_status: "sem_foto",
+        foto_path: null,
+      },
+    ],
+    pontos: [],
+    terminal_logs: [],
+    tentativas: [],
   });
 }
 
-describe("identificação facial no terminal", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    employees([{ id: "employee", foto_path: "ref.jpg" }]);
-    mocks.admin.storage.from.mockReturnValue({ download: async () => ({ data: { arrayBuffer: async () => new ArrayBuffer(1) }, error: null }) });
+async function tokenLeitura() {
+  return (await desbloquear({ data: { documento: "11222333000181", senha: "leitura123" } })).token;
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  cenario();
+});
+
+describe("desbloqueio do terminal", () => {
+  it("aceita CPF/CNPJ só com dígitos e devolve o modo pela senha", async () => {
+    expect(
+      (await desbloquear({ data: { documento: "11222333000181", senha: "leitura123" } })).modo,
+    ).toBe("leitura");
+    expect(
+      (await desbloquear({ data: { documento: "11.222.333/0001-81", senha: "cadastro123" } })).modo,
+    ).toBe("cadastro");
   });
-  it("não apresenta falha do serviço como rosto desconhecido", async () => {
-    mocks.compare.mockRejectedValue(new Error("Reconhecimento facial indisponível no momento (limite de uso da IA)."));
-    await expect(identify(input)).rejects.toThrow("Reconhecimento facial indisponível");
+
+  it("erro genérico e bloqueio após 8 tentativas erradas", async () => {
+    for (let i = 0; i < 8; i++) {
+      await expect(
+        desbloquear({ data: { documento: "11222333000181", senha: `errada${i}` } }),
+      ).rejects.toThrow("CPF/CNPJ ou senha mestra inválidos");
+    }
+    await expect(
+      desbloquear({ data: { documento: "11222333000181", senha: "leitura123" } }),
+    ).rejects.toThrow("Muitas tentativas");
   });
-  it("avisa quando não há rostos cadastrados", async () => {
-    employees([]);
-    await expect(identify(input)).rejects.toThrow("Nenhum funcionário ativo tem rosto cadastrado");
-    expect(mocks.compare).not.toHaveBeenCalled();
+
+  it("trocar a senha mestra derruba os terminais já desbloqueados", async () => {
+    const token = await tokenLeitura();
+    mocks.admin.db.empresas[0].senha_mestra_leitura = hashSenha("novaSenha9");
+    await expect(identificar({ data: { token, imagem: SELFIE } })).rejects.toThrow(
+      "Desbloqueie novamente",
+    );
   });
-  it("mantém aprovação somente a partir de 70%", async () => {
-    mocks.compare.mockResolvedValue({ rosto_real: true, mesma_pessoa: true, confianca: 0.69 });
-    expect((await identify(input)).encontrado).toBeNull();
-    mocks.compare.mockResolvedValue({ rosto_real: true, mesma_pessoa: true, confianca: 0.7 });
-    expect((await identify(input)).encontrado?.id).toBe("employee");
+
+  it("token adulterado não vale", async () => {
+    const token = await tokenLeitura();
+    const [corpo] = token.split(".");
+    await expect(
+      identificar({ data: { token: `${corpo}.assinaturaFalsa`, imagem: SELFIE } }),
+    ).rejects.toThrow("Desbloqueie novamente");
   });
-  it("rejeita outra pessoa mesmo com pontuação alta", async () => {
-    mocks.compare.mockResolvedValue({ rosto_real: true, mesma_pessoa: false, confianca: 0.99 });
-    expect((await identify(input)).encontrado).toBeNull();
+});
+
+describe("identificação e confirmação (fluxo do totem)", () => {
+  it("rosto reconhecido: mostra dados com CPF parcial e o tipo da próxima marcação", async () => {
+    mocks.buscarRosto.mockResolvedValue({ funcionarioId: "f-ana", similaridade: 99.2 });
+    const r = await identificar({ data: { token: await tokenLeitura(), imagem: SELFIE } });
+    expect(r.encontrado).toMatchObject({
+      nome: "Ana Souza",
+      matricula: "A01",
+      cpf: "***.444.777-**",
+      tipo: "ENTRADA",
+    });
+    expect(r.encontrado.cpf).not.toContain("111");
+  });
+
+  it("rosto desconhecido devolve nulo; falha do serviço NÃO vira 'não reconhecido'", async () => {
+    const token = await tokenLeitura();
+    mocks.buscarRosto.mockResolvedValue(null);
+    expect((await identificar({ data: { token, imagem: SELFIE } })).encontrado).toBeNull();
+    const { FaceErro } = await import("./face.server");
+    mocks.buscarRosto.mockRejectedValue(
+      new FaceErro("indisponivel", "Serviço de reconhecimento facial indisponível."),
+    );
+    await expect(identificar({ data: { token, imagem: SELFIE } })).rejects.toThrow("indisponível");
+  });
+
+  it("funcionário desativado ou com rosto não aprovado não é identificado", async () => {
+    mocks.buscarRosto.mockResolvedValue({ funcionarioId: "f-ana", similaridade: 99 });
+    mocks.admin.db.funcionarios[0].ativo = false;
+    expect(
+      (await identificar({ data: { token: await tokenLeitura(), imagem: SELFIE } })).encontrado,
+    ).toBeNull();
+  });
+
+  it("confirmar grava o ponto com foto e localização; confirmação forjada é recusada", async () => {
+    mocks.buscarRosto.mockResolvedValue({ funcionarioId: "f-ana", similaridade: 98.7 });
+    const token = await tokenLeitura();
+    const r = await identificar({ data: { token, imagem: SELFIE } });
+    const ok = await confirmar({ data: { token, confirmacao: r.encontrado.confirmacao, ...SP } });
+    expect(ok).toMatchObject({ tipo: "ENTRADA", nome: "Ana Souza" });
+    const ponto = mocks.admin.db.pontos[0];
+    expect(ponto).toMatchObject({
+      funcionario_id: "f-ana",
+      tipo: "ENTRADA",
+      face_confianca: 0.987,
+    });
+    expect(mocks.admin.arquivos.has(ponto.selfie_path)).toBe(true);
+
+    // Confirmação feita "à mão" com outro funcionário, sem a assinatura do servidor:
+    const falsa =
+      Buffer.from(
+        JSON.stringify({ e: EMP, f: "f-novo", p: "x", s: 99, t: "confirmar", exp: 9e9 }),
+      ).toString("base64url") + ".x";
+    await expect(confirmar({ data: { token, confirmacao: falsa, ...SP } })).rejects.toThrow(
+      "expirou",
+    );
+  });
+
+  it("confirmação de outra empresa não é aceita", async () => {
+    const token = await tokenLeitura();
+    const outra = assinarToken("confirmar", { e: "emp-2", f: "f-ana", p: "x", s: 99 }, 90);
+    await expect(confirmar({ data: { token, confirmacao: outra, ...SP } })).rejects.toThrow(
+      "expirou",
+    );
+  });
+
+  it("cerca geográfica: recusa marcação longe da empresa", async () => {
+    cenario({ raio_m: 200 });
+    mocks.buscarRosto.mockResolvedValue({ funcionarioId: "f-ana", similaridade: 99 });
+    const token = await tokenLeitura();
+    const r = await identificar({ data: { token, imagem: SELFIE } });
+    await expect(
+      confirmar({
+        data: { token, confirmacao: r.encontrado.confirmacao, latitude: -22.9, longitude: -43.2 },
+      }),
+    ).rejects.toThrow("fora do local permitido");
+    expect(mocks.admin.db.pontos).toHaveLength(0);
+  });
+
+  it("exige localização válida", async () => {
+    await expect(
+      confirmar({ data: { token: "x", confirmacao: "y", latitude: Number.NaN, longitude: 0 } }),
+    ).rejects.toThrow("Localização obrigatória");
+  });
+});
+
+describe("cadastro de rosto no terminal", () => {
+  async function tokenCadastro() {
+    return (await desbloquear({ data: { documento: "11222333000181", senha: "cadastro123" } }))
+      .token;
+  }
+  const base = { funcionarioId: "f-novo", consentimento: true, imagem: SELFIE };
+
+  it("senha de leitura não libera cadastro", async () => {
+    await expect(
+      cadastrarRosto({ data: { token: await tokenLeitura(), senhaFuncionario: "x", ...base } }),
+    ).rejects.toThrow("não permite cadastrar");
+  });
+
+  it("exige a senha do próprio funcionário e o aceite do termo", async () => {
+    const token = await tokenCadastro();
+    await expect(
+      cadastrarRosto({ data: { token, senhaFuncionario: "s", ...base, consentimento: false } }),
+    ).rejects.toThrow("termo");
+    mocks.senhaConfere.mockResolvedValue(false);
+    await expect(
+      cadastrarRosto({ data: { token, senhaFuncionario: "errada", ...base } }),
+    ).rejects.toThrow("Senha do funcionário incorreta");
+    expect(mocks.admin.db.funcionarios[1].foto_status).toBe("sem_foto");
+  });
+
+  it("com a senha certa, a foto fica pendente de aprovação do administrador", async () => {
+    mocks.senhaConfere.mockResolvedValue(true);
+    await cadastrarRosto({
+      data: { token: await tokenCadastro(), senhaFuncionario: "certa", ...base },
+    });
+    const f = mocks.admin.db.funcionarios[1];
+    expect(f.foto_status).toBe("pendente");
+    expect(f.consentimento_biometria_em).toBeTruthy();
+    expect(mocks.senhaConfere).toHaveBeenCalledWith(
+      expect.stringMatching(/^func-.*-93541134780@pontoflex\.app$/),
+      "certa",
+    );
+  });
+
+  it("não troca o rosto de quem já está aprovado", async () => {
+    mocks.senhaConfere.mockResolvedValue(true);
+    await expect(
+      cadastrarRosto({
+        data: {
+          token: await tokenCadastro(),
+          senhaFuncionario: "certa",
+          ...base,
+          funcionarioId: "f-ana",
+        },
+      }),
+    ).rejects.toThrow("já possui rosto");
+  });
+});
+
+describe("login do funcionário", () => {
+  it("usa empresa + matrícula (sem diferenciar maiúsculas) e não aceita curingas", async () => {
+    mocks.entrarComSenha.mockResolvedValue({ access_token: "a", refresh_token: "r" });
+    expect(
+      (await login({ data: { documento: "11222333000181", matricula: "a01", senha: "s" } }))
+        .access_token,
+    ).toBe("a");
+    expect(mocks.entrarComSenha).toHaveBeenCalledWith(
+      expect.stringContaining("-11144477735@"),
+      "s",
+    );
+    await expect(
+      login({ data: { documento: "11222333000181", matricula: "%", senha: "s" } }),
+    ).rejects.toThrow("Dados de acesso inválidos");
+  });
+
+  it("bloqueia depois de 6 senhas erradas para a mesma matrícula", async () => {
+    mocks.entrarComSenha.mockResolvedValue(null);
+    for (let i = 0; i < 6; i++)
+      await expect(
+        login({ data: { documento: "11222333000181", matricula: "A01", senha: "x" } }),
+      ).rejects.toThrow("inválidos");
+    await expect(
+      login({ data: { documento: "11222333000181", matricula: "A01", senha: "x" } }),
+    ).rejects.toThrow("Muitas tentativas");
+  });
+});
+
+describe("senhas mestras", () => {
+  it("exigem 8+ caracteres com letras e números", () => {
+    expect(T.validarSenhaMestra("1234")).toMatch(/8 caracteres/);
+    expect(T.validarSenhaMestra("abcdefgh")).toMatch(/letras e números/);
+    expect(T.validarSenhaMestra("totem2026")).toBeNull();
   });
 });

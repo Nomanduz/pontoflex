@@ -1,6 +1,12 @@
 import { dayKey, groupByJornada, workedMs, type Marcacao, type Tipo } from "./ponto";
+import { feriadoNacional } from "./feriados";
 
-type Def = { label: string; tipo: "semanal"; dias: number[] } | { label: string; tipo: "ciclo"; trabalha: number; folga: number };
+/** CLT art. 58, § 1º: variações de até 10 minutos no dia não são descontadas nem computadas como extra. */
+export const TOLERANCIA_DIARIA_MS = 10 * 60_000;
+
+type Def =
+  | { label: string; tipo: "semanal"; dias: number[] }
+  | { label: string; tipo: "ciclo"; trabalha: number; folga: number };
 
 /** Supported work schedules. Weekdays: 0 = Sunday … 6 = Saturday. */
 export const ESCALAS: Record<string, Def> = {
@@ -58,7 +64,10 @@ export function previstoMs(cfg: EscalaCfg): number {
     return d <= 0 ? d + 1440 : d;
   };
   const total = span(cfg.hora_entrada, cfg.hora_saida);
-  const intervalo = cfg.hora_saida_almoco === cfg.hora_retorno_almoco ? 0 : span(cfg.hora_saida_almoco, cfg.hora_retorno_almoco);
+  const intervalo =
+    cfg.hora_saida_almoco === cfg.hora_retorno_almoco
+      ? 0
+      : span(cfg.hora_saida_almoco, cfg.hora_retorno_almoco);
   return Math.max(0, total - intervalo) * 60_000;
 }
 
@@ -92,6 +101,7 @@ export function diasDoPeriodo(inicio: string, fim: string): string[] {
 export interface DiaFolha {
   dia: string;
   trabalho: boolean;
+  feriado: string | null;
   previsto: number;
   trabalhado: number;
   saldo: number;
@@ -101,22 +111,49 @@ export interface DiaFolha {
 
 export interface Folha {
   dias: DiaFolha[];
-  totais: { previsto: number; trabalhado: number; saldo: number; faltas: number; diasTrabalhados: number };
+  totais: {
+    previsto: number;
+    trabalhado: number;
+    saldo: number;
+    faltas: number;
+    diasTrabalhados: number;
+  };
 }
 
-export function montarFolha(cfg: EscalaCfg, pontos: Marcacao[], inicio: string, fim: string, now: Date = new Date()): Folha {
+export function montarFolha(
+  cfg: EscalaCfg,
+  pontos: Marcacao[],
+  inicio: string,
+  fim: string,
+  now: Date = new Date(),
+): Folha {
   const jornadas = groupByJornada(pontos);
   const hoje = dayKey(now);
   const prev = previstoMs(cfg);
   const dias = diasDoPeriodo(inicio, fim).map((dia): DiaFolha => {
-    const marcacoes = (jornadas.get(dia) ?? []).map((m) => ({ tipo: m.tipo, data_hora: m.data_hora }));
-    const trabalho = isDiaTrabalho(cfg, dia);
+    const marcacoes = (jornadas.get(dia) ?? []).map((m) => ({
+      tipo: m.tipo,
+      data_hora: m.data_hora,
+    }));
+    const feriado = feriadoNacional(dia);
+    const trabalho = isDiaTrabalho(cfg, dia) && !feriado;
     const futuro = dia > hoje;
     const previsto = trabalho && !futuro ? prev : 0;
     const trabalhado = workedMs(marcacoes, now);
     const emAndamento = dia === hoje && marcacoes.length > 0 && marcacoes.length < 4;
-    const saldo = futuro || emAndamento || (dia === hoje && marcacoes.length === 0) ? 0 : trabalhado - previsto;
-    return { dia, trabalho, previsto, trabalhado, saldo, falta: trabalho && dia < hoje && marcacoes.length === 0, marcacoes };
+    const bruto =
+      futuro || emAndamento || (dia === hoje && marcacoes.length === 0) ? 0 : trabalhado - previsto;
+    const saldo = Math.abs(bruto) <= TOLERANCIA_DIARIA_MS ? 0 : bruto;
+    return {
+      dia,
+      trabalho,
+      feriado,
+      previsto,
+      trabalhado,
+      saldo,
+      falta: trabalho && dia < hoje && marcacoes.length === 0,
+      marcacoes,
+    };
   });
   const sum = (f: (d: DiaFolha) => number) => dias.reduce((s, d) => s + f(d), 0);
   return {

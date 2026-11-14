@@ -4,6 +4,7 @@ import { AppShell } from "@/components/AppShell";
 export const Route = createFileRoute("/_authenticated/ponto")({
   beforeLoad: ({ context }) => {
     if (context.papel === "admin") throw redirect({ to: "/admin" });
+    if (context.papel === "superadmin") throw redirect({ to: "/nomanduz" });
   },
   component: () => (
     <AppShell

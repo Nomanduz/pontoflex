@@ -1,225 +1,392 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { funcionarioEmail } from "./doc";
-import { nextTipo, TIPO_LABEL, type Tipo } from "./ponto";
+import { cpfParcial, digits, funcionarioEmail, maskDocumento } from "./doc";
+import { coordenadasValidas } from "./geo";
+import { TIPO_LABEL, type Tipo } from "./ponto";
+import type { Banco } from "@/integrations/supabase/banco";
 
-const MIN_CONFIANCA = 0.7;
 type Modo = "leitura" | "cadastro";
+type SessaoTerminal = { e: string; m: Modo; v: string };
+type Confirmacao = { e: string; f: string; p: string; s: number };
 
-function validarImagem(img: unknown): string {
-  if (typeof img !== "string" || !img.startsWith("data:image/jpeg;base64,")) throw new Error("Foto inválida");
-  if (img.length > 3_000_000) throw new Error("Foto muito grande");
-  return img;
-}
+const SESSAO_TERMINAL_SEG = 12 * 3600;
+const CONFIRMACAO_SEG = 90;
 
-/** Validates CNPJ + master password; returns the empresa and which mode the password unlocks. */
-async function empresaPorSenha(cnpj: string, senha: string) {
-  if (!cnpj || !senha) throw new Error("Informe o CNPJ e a senha mestra");
+async function servidor() {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { sha256 } = await import("./face.server");
-  const { data: emp } = await supabaseAdmin
-    .from("empresas")
-    .select("id, razao_social, senha_mestra_leitura, senha_mestra_cadastro")
-    .eq("cnpj", cnpj)
-    .maybeSingle();
-  if (!emp) throw new Error("Empresa não encontrada");
-  const hash = await sha256(senha);
-  const modo: Modo | null =
-    emp.senha_mestra_leitura && hash === emp.senha_mestra_leitura
-      ? "leitura"
-      : emp.senha_mestra_cadastro && hash === emp.senha_mestra_cadastro
-        ? "cadastro"
-        : null;
-  if (!modo) throw new Error("Senha mestra inválida");
-  return { emp, modo, supabaseAdmin };
+  const seg = await import("./seguranca.server");
+  const { ipDaRequisicao } = await import("./requisicao.server");
+  return { supabaseAdmin, ipDaRequisicao, ...seg };
 }
 
-async function logTerminal(supabaseAdmin: any, empresaId: string, acao: string, funcionarioId?: string | null, detalhe?: string) {
-  await supabaseAdmin.from("terminal_logs").insert({ empresa_id: empresaId, acao, funcionario_id: funcionarioId ?? null, detalhe: detalhe ?? null });
+/** Impressão da senha mestra atual: trocar a senha invalida terminais já desbloqueados. */
+const versaoDe = (sha256: (s: string) => string, hash: string | null) =>
+  hash ? sha256(hash).slice(0, 12) : "";
+
+/** Valida o token do terminal e a senha vigente da empresa. */
+async function sessaoValida(token: string, exigir?: Modo) {
+  const s = await servidor();
+  const dados = s.lerToken<SessaoTerminal>("terminal", token);
+  if (!dados) throw new Error("Sessão do terminal expirada. Desbloqueie novamente.");
+  const { data: emp } = await s.supabaseAdmin
+    .from("empresas")
+    .select(
+      "id, razao_social, senha_mestra_leitura, senha_mestra_cadastro, latitude, longitude, raio_m",
+    )
+    .eq("id", dados.e)
+    .maybeSingle();
+  const atual = dados.m === "leitura" ? emp?.senha_mestra_leitura : emp?.senha_mestra_cadastro;
+  if (!emp || versaoDe(s.sha256, atual ?? null) !== dados.v)
+    throw new Error("Sessão do terminal expirada. Desbloqueie novamente.");
+  if (exigir && dados.m !== exigir)
+    throw new Error(
+      exigir === "cadastro"
+        ? "Esta senha não permite cadastrar rostos"
+        : "Este terminal está no modo cadastro",
+    );
+  return { ...s, emp, modo: dados.m };
+}
+
+async function logTerminal(
+  supabaseAdmin: Banco,
+  empresaId: string,
+  acao: string,
+  funcionarioId?: string | null,
+  detalhe?: string,
+) {
+  await supabaseAdmin.from("terminal_logs").insert({
+    empresa_id: empresaId,
+    acao,
+    funcionario_id: funcionarioId ?? null,
+    detalhe: detalhe ?? null,
+  });
 }
 
 export const desbloquearTerminal = createServerFn({ method: "POST" })
-  .inputValidator((d: { cnpj: string; senha: string }) => d)
+  .validator((d: { documento: string; senha: string }) => {
+    if (!digits(d?.documento ?? "") || !d?.senha)
+      throw new Error("Informe o CPF/CNPJ e a senha mestra");
+    return d;
+  })
   .handler(async ({ data }) => {
-    const { emp, modo } = await empresaPorSenha(data.cnpj.trim(), data.senha);
-    return { modo, empresa: emp.razao_social };
+    const s = await servidor();
+    const doc = digits(data.documento);
+    const chaves = [`terminal:${doc}`, `terminal-ip:${s.ipDaRequisicao()}`];
+    await s.exigirAbaixoDoLimite(s.supabaseAdmin, chaves[0]!, 8, 15);
+    await s.exigirAbaixoDoLimite(s.supabaseAdmin, chaves[1]!, 30, 15);
+    const { data: emp } = await s.supabaseAdmin
+      .from("empresas")
+      .select("id, razao_social, senha_mestra_leitura, senha_mestra_cadastro")
+      .eq("documento", maskDocumento(doc))
+      .maybeSingle();
+    const modo: Modo | null = !emp
+      ? null
+      : s.conferirSenha(data.senha, emp.senha_mestra_leitura)
+        ? "leitura"
+        : s.conferirSenha(data.senha, emp.senha_mestra_cadastro)
+          ? "cadastro"
+          : null;
+    if (!emp || !modo) {
+      for (const c of chaves) await s.registrarTentativa(s.supabaseAdmin, c);
+      throw new Error("CPF/CNPJ ou senha mestra inválidos");
+    }
+    await s.limparTentativas(s.supabaseAdmin, chaves[0]!);
+    await logTerminal(s.supabaseAdmin, emp.id, "desbloqueio", null, `Modo ${modo}`);
+    const hash = modo === "leitura" ? emp.senha_mestra_leitura : emp.senha_mestra_cadastro;
+    const token = s.assinarToken(
+      "terminal",
+      { e: emp.id, m: modo, v: versaoDe(s.sha256, hash) },
+      SESSAO_TERMINAL_SEG,
+    );
+    return { token, modo, empresa: emp.razao_social as string };
   });
 
-/** Identifies an employee by face among all enrolled employees of the company. */
+/** Identifica o funcionário pelo rosto (1 consulta ao Rekognition) e prepara a confirmação. */
 export const identificarRosto = createServerFn({ method: "POST" })
-  .inputValidator((d: { cnpj: string; senha: string; imagem: string }) => ({ ...d, imagem: validarImagem(d?.imagem) }))
+  .validator((d: { token: string; imagem: string }) => d)
   .handler(async ({ data }) => {
-    const { emp, supabaseAdmin } = await empresaPorSenha(data.cnpj.trim(), data.senha);
-    const { compararRostos, bytesToDataUrl } = await import("./face.server");
-    const { data: funcs, error: funcsError } = await supabaseAdmin
-      .from("funcionarios")
-      .select("id, nome, matricula, cpf, foto_path")
-      .eq("empresa_id", emp.id)
-      .eq("ativo", true)
-      .not("foto_path", "is", null);
-    if (funcsError) throw new Error("Não foi possível consultar os rostos cadastrados.");
-    if (!funcs?.length) throw new Error("Nenhum funcionário ativo tem rosto cadastrado. Use o modo cadastro primeiro.");
-    let best: { f: (typeof funcs extends (infer T)[] | null ? T : never); confianca: number } | null = null;
-    let referenceFailures = 0;
-    for (const f of funcs ?? []) {
-      if (!f.foto_path) { referenceFailures++; continue; }
-      const { data: ref, error: refError } = await supabaseAdmin.storage.from("faces").download(f.foto_path);
-      if (refError || !ref) { referenceFailures++; continue; }
-      try {
-        const r = await compararRostos(bytesToDataUrl(new Uint8Array(await ref.arrayBuffer())), data.imagem);
-        if (r.rosto_real && r.mesma_pessoa && r.confianca >= MIN_CONFIANCA && (!best || r.confianca > best.confianca))
-          best = { f, confianca: r.confianca };
-      } catch (error) {
-        await logTerminal(supabaseAdmin, emp.id, "verificacao_indisponivel", null, error instanceof Error ? error.message : "Falha no serviço facial");
-        throw error;
-      }
+    const { validarImagem, buscarRosto, dataUrlToBytes, FaceErro } = await import("./face.server");
+    const imagem = validarImagem(data?.imagem);
+    const { supabaseAdmin, emp, assinarToken, exigirAbaixoDoLimite, registrarTentativa } =
+      await sessaoValida(data.token, "leitura");
+    // Freio de custo/abuso: até 60 identificações por minuto por empresa.
+    await exigirAbaixoDoLimite(
+      supabaseAdmin,
+      `ident:${emp.id}`,
+      60,
+      1,
+      "Muitas leituras seguidas. Aguarde alguns segundos.",
+    );
+    await registrarTentativa(supabaseAdmin, `ident:${emp.id}`);
+
+    const bytes = dataUrlToBytes(imagem);
+    let achado: Awaited<ReturnType<typeof buscarRosto>>;
+    try {
+      achado = await buscarRosto(emp.id, bytes);
+    } catch (e) {
+      await logTerminal(
+        supabaseAdmin,
+        emp.id,
+        e instanceof FaceErro && e.codigo === "indisponivel"
+          ? "verificacao_indisponivel"
+          : "identificacao_falhou",
+        null,
+        (e as Error).message,
+      );
+      throw e;
     }
-    if (!best) {
-      if (referenceFailures) {
-        await logTerminal(supabaseAdmin, emp.id, "referencia_indisponivel", null, "Não foi possível carregar todas as fotos cadastradas");
-        throw new Error("Uma foto cadastrada está indisponível. Peça ao administrador para verificar ou redefinir o rosto.");
-      }
-      await logTerminal(supabaseAdmin, emp.id, "identificacao_falhou", null, "Rosto não reconhecido");
+    if (!achado) {
+      await logTerminal(
+        supabaseAdmin,
+        emp.id,
+        "identificacao_falhou",
+        null,
+        "Rosto não reconhecido",
+      );
       return { encontrado: null };
     }
-    await logTerminal(supabaseAdmin, emp.id, "identificado", best.f.id, `Confiança ${Math.round(best.confianca * 100)}%`);
+    const { data: f } = await supabaseAdmin
+      .from("funcionarios")
+      .select("id, nome, matricula, cpf, ativo, foto_status")
+      .eq("id", achado.funcionarioId)
+      .eq("empresa_id", emp.id)
+      .maybeSingle();
+    if (!f || !f.ativo || f.foto_status !== "aprovada") {
+      await logTerminal(
+        supabaseAdmin,
+        emp.id,
+        "identificacao_falhou",
+        f?.id ?? null,
+        "Funcionário inativo ou rosto não aprovado",
+      );
+      return { encontrado: null };
+    }
+    const { proximaMarcacao } = await import("./ponto.server");
+    const tipo = await proximaMarcacao(supabaseAdmin, f.id);
+    const path = `${emp.id}/${f.id}/${Date.now()}.jpg`;
+    const { error: upErr } = await supabaseAdmin.storage
+      .from("faces")
+      .upload(path, bytes, { contentType: "image/jpeg" });
+    if (upErr) throw new Error("Não foi possível salvar a foto da marcação. Tente novamente.");
+    await logTerminal(
+      supabaseAdmin,
+      emp.id,
+      "identificado",
+      f.id,
+      `Similaridade ${achado.similaridade.toFixed(1)}%`,
+    );
     return {
       encontrado: {
-        id: best.f.id,
-        nome: best.f.nome,
-        matricula: best.f.matricula,
-        cpf: best.f.cpf,
-        confianca: best.confianca,
+        nome: f.nome as string,
+        matricula: f.matricula as string,
+        cpf: cpfParcial(f.cpf),
+        tipo,
+        tipoLabel: tipo ? TIPO_LABEL[tipo] : null,
+        similaridade: Math.round(achado.similaridade * 10) / 10,
+        confirmacao: assinarToken(
+          "confirmar",
+          { e: emp.id, f: f.id, p: path, s: achado.similaridade },
+          CONFIRMACAO_SEG,
+        ),
       },
     };
   });
 
-/** Registers the next punch for the identified employee, re-verifying the face. */
+/** O funcionário conferiu os dados na tela e tocou em "Confirmar". */
 export const confirmarPontoTerminal = createServerFn({ method: "POST" })
-  .inputValidator((d: { cnpj: string; senha: string; funcionarioId: string; imagem: string; latitude: number; longitude: number }) => {
-    if (!Number.isFinite(d?.latitude) || !Number.isFinite(d?.longitude)) throw new Error("Localização obrigatória");
-    return { ...d, imagem: validarImagem(d?.imagem) };
+  .validator((d: { token: string; confirmacao: string; latitude: number; longitude: number }) => {
+    if (!coordenadasValidas(d?.latitude, d?.longitude))
+      throw new Error("Localização obrigatória. Permita o acesso à localização neste terminal.");
+    return d;
   })
   .handler(async ({ data }) => {
-    const { emp, supabaseAdmin } = await empresaPorSenha(data.cnpj.trim(), data.senha);
-    const { compararRostos, bytesToDataUrl, dataUrlToBytes } = await import("./face.server");
-    const { data: f } = await supabaseAdmin
-      .from("funcionarios")
-      .select("id, nome, foto_path, ativo")
-      .eq("id", data.funcionarioId)
-      .eq("empresa_id", emp.id)
-      .maybeSingle();
-    if (!f || !f.ativo || !f.foto_path) throw new Error("Funcionário não encontrado");
-
-    const { data: ref, error: refErr } = await supabaseAdmin.storage.from("faces").download(f.foto_path);
-    if (refErr || !ref) throw new Error("Foto de referência não encontrada");
-    const r = await compararRostos(bytesToDataUrl(new Uint8Array(await ref.arrayBuffer())), data.imagem);
-    if (!r.rosto_real || !r.mesma_pessoa || r.confianca < MIN_CONFIANCA) {
-      await logTerminal(supabaseAdmin, emp.id, "registro_negado", f.id, "Rosto não confirmado");
-      throw new Error("Rosto não confirmado. O ponto não foi registrado.");
-    }
-
-    const since = new Date(Date.now() - 30 * 3600_000).toISOString();
-    const { data: pts } = await supabaseAdmin.from("pontos").select("tipo, data_hora").eq("funcionario_id", f.id).gte("data_hora", since).order("data_hora");
-    const tipo = nextTipo(pts ?? []) as Tipo | null;
-    if (!tipo) throw new Error("Aguarde para registrar a próxima marcação");
-
-    const path = `${emp.id}/${f.id}/${Date.now()}.jpg`;
-    await supabaseAdmin.storage.from("faces").upload(path, dataUrlToBytes(data.imagem), { contentType: "image/jpeg" });
-    const { data: ins, error } = await supabaseAdmin
-      .from("pontos")
-      .insert({
-        funcionario_id: f.id,
-        empresa_id: emp.id,
-        tipo,
-        latitude: data.latitude,
-        longitude: data.longitude,
-        selfie_path: path,
-        face_status: "aprovado",
-        face_confianca: r.confianca,
-      })
-      .select("tipo, data_hora")
-      .single();
-    if (error) throw new Error(error.message.includes("esperada") || error.message.includes("encerrada") ? error.message : "Não foi possível registrar o ponto");
-    await logTerminal(supabaseAdmin, emp.id, "registro", f.id, `${TIPO_LABEL[ins.tipo as Tipo]} às ${ins.data_hora}`);
-    return { tipo: ins.tipo as Tipo, data_hora: ins.data_hora, nome: f.nome, confianca: r.confianca };
+    const { supabaseAdmin, emp, lerToken } = await sessaoValida(data.token, "leitura");
+    const c = lerToken<Confirmacao>("confirmar", data.confirmacao);
+    if (!c || c.e !== emp.id)
+      throw new Error("A confirmação expirou. Faça a leitura do rosto novamente.");
+    const { registrarMarcacao } = await import("./ponto.server");
+    const r = await registrarMarcacao(supabaseAdmin, {
+      empresa: emp,
+      funcionarioId: c.f,
+      selfiePath: c.p,
+      similaridade: c.s,
+      latitude: data.latitude,
+      longitude: data.longitude,
+    });
+    await logTerminal(
+      supabaseAdmin,
+      emp.id,
+      "registro",
+      c.f,
+      `${TIPO_LABEL[r.tipo]} às ${r.data_hora}${r.distancia_m != null ? ` (${r.distancia_m} m)` : ""}`,
+    );
+    return r;
   });
 
-/** Cadastro mode: employees still missing the face reference photo. */
-export const listarSemRosto = createServerFn({ method: "POST" })
-  .inputValidator((d: { cnpj: string; senha: string }) => d)
+export const recusarIdentificacao = createServerFn({ method: "POST" })
+  .validator((d: { token: string; confirmacao: string }) => d)
   .handler(async ({ data }) => {
-    const { emp, modo, supabaseAdmin } = await empresaPorSenha(data.cnpj.trim(), data.senha);
-    if (modo !== "cadastro") throw new Error("Esta senha não permite cadastrar rostos");
+    const { supabaseAdmin, emp, lerToken } = await sessaoValida(data.token, "leitura");
+    const c = lerToken<Confirmacao>("confirmar", data.confirmacao);
+    if (c && c.e === emp.id)
+      await logTerminal(
+        supabaseAdmin,
+        emp.id,
+        "identificacao_rejeitada",
+        c.f,
+        `Funcionário informou "não sou eu". Foto: ${c.p}`,
+      );
+    return { ok: true };
+  });
+
+/** Modo cadastro: funcionários ativos ainda sem rosto aprovado. */
+export const listarSemRosto = createServerFn({ method: "POST" })
+  .validator((d: { token: string }) => d)
+  .handler(async ({ data }) => {
+    const { supabaseAdmin, emp } = await sessaoValida(data.token, "cadastro");
     const { data: funcs } = await supabaseAdmin
       .from("funcionarios")
-      .select("id, nome, matricula")
+      .select("id, nome, matricula, foto_status")
       .eq("empresa_id", emp.id)
       .eq("ativo", true)
-      .is("foto_path", null)
+      .in("foto_status", ["sem_foto", "recusada"])
       .order("nome");
-    return { funcionarios: funcs ?? [] };
+    return {
+      funcionarios: (funcs ?? []) as {
+        id: string;
+        nome: string;
+        matricula: string;
+        foto_status: string;
+      }[],
+    };
   });
 
+/** Cadastro do rosto no totem: o próprio funcionário confirma com a senha dele e aceita o termo. */
 export const cadastrarRostoTerminal = createServerFn({ method: "POST" })
-  .inputValidator((d: { cnpj: string; senha: string; funcionarioId: string; imagem: string }) => ({ ...d, imagem: validarImagem(d?.imagem) }))
+  .validator(
+    (d: {
+      token: string;
+      funcionarioId: string;
+      senhaFuncionario: string;
+      consentimento: boolean;
+      imagem: string;
+    }) => {
+      if (!d?.senhaFuncionario) throw new Error("O funcionário precisa digitar a própria senha");
+      if (d.consentimento !== true)
+        throw new Error("É preciso aceitar o termo de uso da biometria");
+      return d;
+    },
+  )
   .handler(async ({ data }) => {
-    const { emp, modo, supabaseAdmin } = await empresaPorSenha(data.cnpj.trim(), data.senha);
-    if (modo !== "cadastro") throw new Error("Esta senha não permite cadastrar rostos");
-    const { dataUrlToBytes } = await import("./face.server");
+    const { validarImagem } = await import("./face.server");
+    const imagem = validarImagem(data.imagem);
+    const { supabaseAdmin, emp, exigirAbaixoDoLimite, registrarTentativa, limparTentativas } =
+      await sessaoValida(data.token, "cadastro");
     const { data: f } = await supabaseAdmin
       .from("funcionarios")
-      .select("id, nome")
+      .select("id, nome, cpf, foto_path, foto_status, ativo")
       .eq("id", data.funcionarioId)
       .eq("empresa_id", emp.id)
-      .is("foto_path", null)
       .maybeSingle();
-    if (!f) throw new Error("Funcionário não encontrado ou já possui rosto cadastrado");
-    const path = `${emp.id}/${f.id}/referencia-${Date.now()}.jpg`;
-    const { error } = await supabaseAdmin.storage.from("faces").upload(path, dataUrlToBytes(data.imagem), { contentType: "image/jpeg" });
-    if (error) throw new Error("Não foi possível salvar a foto");
-    await supabaseAdmin.from("funcionarios").update({ foto_path: path }).eq("id", f.id);
-    await logTerminal(supabaseAdmin, emp.id, "cadastro_rosto", f.id, `Rosto de ${f.nome} cadastrado no terminal`);
-    return { ok: true, nome: f.nome };
+    if (!f || !f.ativo || !["sem_foto", "recusada"].includes(f.foto_status))
+      throw new Error("Funcionário não encontrado ou já possui rosto cadastrado");
+    const chave = `senha-func:${f.id}`;
+    await exigirAbaixoDoLimite(supabaseAdmin, chave, 5, 15);
+    const { senhaConfere } = await import("@/integrations/supabase/auth-check.server");
+    if (!(await senhaConfere(funcionarioEmail(emp.id, f.cpf), data.senhaFuncionario))) {
+      await registrarTentativa(supabaseAdmin, chave);
+      throw new Error("Senha do funcionário incorreta");
+    }
+    await limparTentativas(supabaseAdmin, chave);
+    const { salvarReferencia } = await import("./ponto.server");
+    await salvarReferencia(supabaseAdmin, { empresaId: emp.id, funcionario: f, imagem });
+    await logTerminal(
+      supabaseAdmin,
+      emp.id,
+      "cadastro_rosto",
+      f.id,
+      `Rosto de ${f.nome} enviado para aprovação`,
+    );
+    return { ok: true, nome: f.nome as string };
   });
 
-/** Employee login by matrícula + generated password; returns a session for the client to set. */
+/** Login do funcionário: CPF/CNPJ da empresa + matrícula + senha. */
 export const loginPorMatricula = createServerFn({ method: "POST" })
-  .inputValidator((d: { matricula: string; senha: string }) => {
-    if (!d?.matricula?.trim() || !d?.senha) throw new Error("Informe a matrícula e a senha");
+  .validator((d: { documento: string; matricula: string; senha: string }) => {
+    if (!digits(d?.documento ?? "") || !d?.matricula?.trim() || !d?.senha)
+      throw new Error("Informe o CPF/CNPJ da empresa, a matrícula e a senha");
     return d;
   })
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: f } = await supabaseAdmin
-      .from("funcionarios")
-      .select("cpf, ativo")
-      .ilike("matricula", data.matricula.trim())
+    const s = await servidor();
+    const doc = digits(data.documento);
+    const matricula = data.matricula.trim().toLowerCase();
+    const chaves = [`login:${doc}:${matricula}`, `login-ip:${s.ipDaRequisicao()}`];
+    await s.exigirAbaixoDoLimite(s.supabaseAdmin, chaves[0]!, 6, 15);
+    await s.exigirAbaixoDoLimite(s.supabaseAdmin, chaves[1]!, 40, 15);
+    const falhar = async (): Promise<never> => {
+      for (const c of chaves) await s.registrarTentativa(s.supabaseAdmin, c);
+      throw new Error("Dados de acesso inválidos");
+    };
+    const { data: emp } = await s.supabaseAdmin
+      .from("empresas")
+      .select("id")
+      .eq("documento", maskDocumento(doc))
       .maybeSingle();
-    if (!f) throw new Error("Matrícula ou senha inválidos");
-    if (!f.ativo) throw new Error("Seu acesso está desativado. Fale com o administrador.");
-    const { data: sess, error } = await supabaseAdmin.auth.signInWithPassword({
-      email: funcionarioEmail(f.cpf),
-      password: data.senha,
-    });
-    if (error || !sess.session) throw new Error("Matrícula ou senha inválidos");
-    return { access_token: sess.session.access_token, refresh_token: sess.session.refresh_token };
+    if (!emp) return falhar();
+    const { data: funcs } = await s.supabaseAdmin
+      .from("funcionarios")
+      .select("cpf, matricula, ativo")
+      .eq("empresa_id", emp.id);
+    const f = (funcs ?? []).find(
+      (x: { matricula: string }) => x.matricula.trim().toLowerCase() === matricula,
+    );
+    if (!f || !f.ativo) return falhar();
+    const { entrarComSenha } = await import("@/integrations/supabase/auth-check.server");
+    const sess = await entrarComSenha(funcionarioEmail(emp.id, f.cpf), data.senha);
+    if (!sess) return falhar();
+    await s.limparTentativas(s.supabaseAdmin, chaves[0]!);
+    return { access_token: sess.access_token, refresh_token: sess.refresh_token };
   });
 
-// ---------- Admin ----------
+// ---------- Administrador ----------
+
+export function validarSenhaMestra(s: string): string | null {
+  if (s.length < 8) return "A senha mestra precisa ter pelo menos 8 caracteres";
+  if (!/[a-zA-Z]/.test(s) || !/\d/.test(s)) return "Use letras e números na senha mestra";
+  return null;
+}
 
 export const definirSenhasMestras = createServerFn({ method: "POST" })
-  .inputValidator((d: { leitura?: string; cadastro?: string }) => {
-    if ((d.leitura ?? "").length < 4 && (d.cadastro ?? "").length < 4) throw new Error("Informe ao menos uma senha (mín. 4 caracteres)");
-    return d;
-  })
   .middleware([requireSupabaseAuth])
+  .validator((d: { leitura?: string; cadastro?: string }) => {
+    const leitura = d?.leitura ?? "";
+    const cadastro = d?.cadastro ?? "";
+    if (!leitura && !cadastro) throw new Error("Informe ao menos uma senha");
+    for (const s of [leitura, cadastro].filter(Boolean)) {
+      const erro = validarSenhaMestra(s);
+      if (erro) throw new Error(erro);
+    }
+    if (leitura && cadastro && leitura === cadastro)
+      throw new Error("As senhas de leitura e de cadastro devem ser diferentes");
+    return { leitura, cadastro };
+  })
   .handler(async ({ data, context }) => {
-    const { sha256 } = await import("./face.server");
+    const { supabaseAdmin, hashSenha, conferirSenha } = await servidor();
+    const { data: emp } = await supabaseAdmin
+      .from("empresas")
+      .select("id, senha_mestra_leitura, senha_mestra_cadastro")
+      .eq("user_id", context.userId)
+      .maybeSingle();
+    if (!emp) throw new Error("Apenas o administrador da empresa pode definir as senhas");
+    if (data.leitura && conferirSenha(data.leitura, emp.senha_mestra_cadastro))
+      throw new Error("A senha de leitura não pode ser igual à de cadastro");
+    if (data.cadastro && conferirSenha(data.cadastro, emp.senha_mestra_leitura))
+      throw new Error("A senha de cadastro não pode ser igual à de leitura");
     const upd: { senha_mestra_leitura?: string; senha_mestra_cadastro?: string } = {};
-    if (data.leitura) upd["senha_mestra_leitura"] = await sha256(data.leitura);
-    if (data.cadastro) upd["senha_mestra_cadastro"] = await sha256(data.cadastro);
-    const { error } = await context.supabase.from("empresas").update(upd).eq("user_id", context.userId);
+    if (data.leitura) upd.senha_mestra_leitura = hashSenha(data.leitura);
+    if (data.cadastro) upd.senha_mestra_cadastro = hashSenha(data.cadastro);
+    const { error } = await supabaseAdmin.from("empresas").update(upd).eq("id", emp.id);
     if (error) throw new Error("Não foi possível salvar as senhas");
     return { ok: true };
   });
@@ -234,3 +401,5 @@ export const listarTerminalLogs = createServerFn({ method: "POST" })
       .limit(50);
     return { logs: data ?? [] };
   });
+
+export type { Tipo };

@@ -1,13 +1,10 @@
-<!-- LOVABLE:BEGIN -->
-> [!IMPORTANT]
-> This project is connected to [Lovable](https://lovable.dev). Avoid rewriting
-> published git history — force pushing, or rebasing/amending/squashing commits
-> that are already pushed — as it rewrites history on Lovable's side and the
-> user will likely lose their project history.
->
-> Commits you push to the connected branch sync back to Lovable and show up in
-> the editor, so keep the branch in a working state.
-<!-- LOVABLE:END -->
+# PontoFlex — notas para quem mexe no código
 
-- Capture and reference uploads use the same centered 3:4 crop without upscaling, so the saved frame matches the preview.
-- Facial AI calls remain server-only through the typed Gateway SDK; service failures must never be treated as identity mismatches.
+- Produto da NOMANDUZ - TECH and IA. Infra própria: Supabase + Vercel + AWS Rekognition + e-mail (SMTP/Resend).
+- Reconhecimento facial: AWS Rekognition (`src/lib/face.server.ts`), uma coleção por empresa. Rosto de referência só vale depois de aprovado pelo administrador.
+- Captura no aparelho: MediaPipe Face Landmarker (`src/components/FaceCapture.tsx` + `src/lib/face-guia.ts`): enquadrar → piscar → captura automática. Arquivos servidos de `public/mediapipe` (gerado por `scripts/copiar-mediapipe.mjs`).
+- Falha do serviço facial nunca pode ser tratada como "rosto não reconhecido".
+- Nunca chame `signInWithPassword` no cliente `supabaseAdmin`: use `src/integrations/supabase/auth-check.server.ts`.
+- Funções que leem cabeçalhos da requisição ficam em `src/lib/requisicao.server.ts` e são importadas dentro dos handlers.
+- Toda mudança de banco: nova migração em `drizzle/migrations/NNNN_*.sql`, atualizar `src/integrations/supabase/types.ts` e `src/test/banco.test.ts`.
+- Antes de commitar: `bun run typecheck`, `bun run test`, `bun run lint`, `bun run build`.

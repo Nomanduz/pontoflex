@@ -16,12 +16,15 @@ describe("sequência de marcações", () => {
   });
   it("encerra o dia após SAIDA", () => {
     expect(
-      nextTipo([
-        { tipo: "ENTRADA", data_hora: at("08:00") },
-        { tipo: "SAIDA_ALMOCO", data_hora: at("12:00") },
-        { tipo: "RETORNO_ALMOCO", data_hora: at("13:00") },
-        { tipo: "SAIDA", data_hora: at("17:00") },
-      ], new Date(at("17:30"))),
+      nextTipo(
+        [
+          { tipo: "ENTRADA", data_hora: at("08:00") },
+          { tipo: "SAIDA_ALMOCO", data_hora: at("12:00") },
+          { tipo: "RETORNO_ALMOCO", data_hora: at("13:00") },
+          { tipo: "SAIDA", data_hora: at("17:00") },
+        ],
+        new Date(at("17:30")),
+      ),
     ).toBeNull();
   });
 });
@@ -42,7 +45,9 @@ describe("horas trabalhadas", () => {
   });
   it("saldo em dia útil desconta 8h", () => {
     // 2026-10-14 is a Wednesday
-    expect(saldoDia("2026-10-14", [{ tipo: "ENTRADA", data_hora: at("08:00") }], new Date(at("14:00")))).toBe(-2 * 3600_000);
+    expect(
+      saldoDia("2026-10-14", [{ tipo: "ENTRADA", data_hora: at("08:00") }], new Date(at("14:00"))),
+    ).toBe(-2 * 3600_000);
   });
 });
 
@@ -67,6 +72,8 @@ describe("documentos", () => {
   });
   it("gera login interno a partir dos dígitos", () => {
     expect(empresaEmail("12.345.678/0001-99")).toBe("empresa-12345678000199@pontoflex.app");
-    expect(funcionarioEmail("123.456.789-10")).toBe("func-12345678910@pontoflex.app");
+    expect(funcionarioEmail("abcdef12-3456-7890-abcd-ef1234567890", "123.456.789-10")).toBe(
+      "func-abcdef123456-12345678910@pontoflex.app",
+    );
   });
 });

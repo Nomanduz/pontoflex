@@ -11,7 +11,6 @@ import {
 import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
-import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -37,14 +36,12 @@ function NotFoundComponent() {
 function ErrorComponent({ error, reset }: ErrorComponentProps) {
   console.error(error);
   const router = useRouter();
-  useEffect(() => {
-    reportLovableError(error, { boundary: "tanstack_root_error_component" });
-  }, [error]);
-
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">Esta página não carregou</h1>
+        <h1 className="text-xl font-semibold tracking-tight text-foreground">
+          Esta página não carregou
+        </h1>
         <p className="mt-2 text-sm text-muted-foreground">Algo deu errado. Tente novamente.</p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
@@ -68,7 +65,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "PontoFlex — Ponto eletrônico" },
-      { name: "description", content: "Registro de ponto eletrônico com geolocalização para pequenas e médias empresas." },
+      {
+        name: "description",
+        content:
+          "Ponto eletrônico com reconhecimento facial para pequenas e médias empresas. Um produto NOMANDUZ - TECH and IA.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],

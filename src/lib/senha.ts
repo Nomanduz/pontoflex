@@ -3,7 +3,10 @@ import { dayKey } from "./ponto";
 const mes = (d: Date | string) => dayKey(d).slice(0, 7);
 
 /** Funcionário pode trocar a senha uma vez por mês (calendário de São Paulo). */
-export function podeTrocarSenha(alteradaEm: string | null | undefined, agora: Date = new Date()): boolean {
+export function podeTrocarSenha(
+  alteradaEm: string | null | undefined,
+  agora: Date = new Date(),
+): boolean {
   return !alteradaEm || mes(alteradaEm) !== mes(agora);
 }
 

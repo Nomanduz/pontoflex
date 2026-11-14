@@ -9,7 +9,19 @@ import { Label } from "@/components/ui/label";
 import { pedirCodigoSenhaEmpresa, trocarSenhaEmpresa } from "@/lib/empresa-senha.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/senha")({
-  head: () => ({ meta: [{ title: "Senha da empresa — PontoFlex" }, { name: "description", content: "Troque a senha da empresa com confirmação por e-mail." }, { property: "og:title", content: "Senha da empresa — PontoFlex" }, { property: "og:description", content: "Troque a senha da empresa com confirmação por e-mail." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
+  head: () => ({
+    meta: [
+      { title: "Senha da empresa — PontoFlex" },
+      { name: "description", content: "Troque a senha da empresa com confirmação por e-mail." },
+      { property: "og:title", content: "Senha da empresa — PontoFlex" },
+      {
+        property: "og:description",
+        content: "Troque a senha da empresa com confirmação por e-mail.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+    ],
+  }),
   component: SenhaEmpresa,
 });
 
@@ -43,7 +55,11 @@ function SenhaEmpresa() {
     try {
       await trocar({ data: { atual, nova, codigo } });
       toast.success("Senha da empresa trocada!");
-      setEnviadoPara(null); setCodigo(""); setAtual(""); setNova(""); setConf("");
+      setEnviadoPara(null);
+      setCodigo("");
+      setAtual("");
+      setNova("");
+      setConf("");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erro ao trocar a senha");
     } finally {
@@ -54,21 +70,82 @@ function SenhaEmpresa() {
   return (
     <div className="mx-auto max-w-md space-y-4">
       <h1 className="font-display text-2xl font-bold">Senha da empresa</h1>
-      <p className="text-sm text-muted-foreground">Para sua segurança, enviamos um código ao e-mail cadastrado da empresa antes de trocar a senha.</p>
+      <p className="text-sm text-muted-foreground">
+        Para sua segurança, enviamos um código ao e-mail cadastrado da empresa antes de trocar a
+        senha.
+      </p>
       <Card>
-        <CardHeader><CardTitle className="text-base">{enviadoPara ? "Confirme a troca" : "1. Receber código"}</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle className="text-base">
+            {enviadoPara ? "Confirme a troca" : "1. Receber código"}
+          </CardTitle>
+        </CardHeader>
         <CardContent>
           {!enviadoPara ? (
-            <Button className="w-full" onClick={enviarCodigo} disabled={busy}>{busy ? "Enviando…" : "Enviar código por e-mail"}</Button>
+            <Button className="w-full" onClick={enviarCodigo} disabled={busy}>
+              {busy ? "Enviando…" : "Enviar código por e-mail"}
+            </Button>
           ) : (
             <form onSubmit={salvar} className="space-y-3">
-              <p className="text-sm">Enviamos um código para <strong>{enviadoPara}</strong>. Ele vale por 15 minutos.</p>
-              <div className="space-y-1"><Label htmlFor="codigo">Código</Label><Input id="codigo" inputMode="numeric" maxLength={6} value={codigo} onChange={(e) => setCodigo(e.target.value.replace(/\D/g, ""))} required /></div>
-              <div className="space-y-1"><Label htmlFor="atual">Senha atual</Label><Input id="atual" type="password" value={atual} onChange={(e) => setAtual(e.target.value)} required /></div>
-              <div className="space-y-1"><Label htmlFor="nova">Nova senha</Label><Input id="nova" type="password" value={nova} onChange={(e) => setNova(e.target.value)} required /><p className="text-xs text-muted-foreground">Mínimo 12 caracteres, com maiúscula, minúscula, número e símbolo.</p></div>
-              <div className="space-y-1"><Label htmlFor="conf">Confirmar nova senha</Label><Input id="conf" type="password" value={conf} onChange={(e) => setConf(e.target.value)} required /></div>
-              <Button type="submit" className="w-full" disabled={busy}>{busy ? "Salvando…" : "Trocar senha"}</Button>
-              <Button type="button" variant="ghost" className="w-full" onClick={enviarCodigo} disabled={busy}>Reenviar código</Button>
+              <p className="text-sm">
+                Enviamos um código para <strong>{enviadoPara}</strong>. Ele vale por 15 minutos.
+              </p>
+              <div className="space-y-1">
+                <Label htmlFor="codigo">Código</Label>
+                <Input
+                  id="codigo"
+                  inputMode="numeric"
+                  maxLength={6}
+                  value={codigo}
+                  onChange={(e) => setCodigo(e.target.value.replace(/\D/g, ""))}
+                  required
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="atual">Senha atual</Label>
+                <Input
+                  id="atual"
+                  type="password"
+                  value={atual}
+                  onChange={(e) => setAtual(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="nova">Nova senha</Label>
+                <Input
+                  id="nova"
+                  type="password"
+                  value={nova}
+                  onChange={(e) => setNova(e.target.value)}
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  Mínimo 12 caracteres, com maiúscula, minúscula, número e símbolo.
+                </p>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="conf">Confirmar nova senha</Label>
+                <Input
+                  id="conf"
+                  type="password"
+                  value={conf}
+                  onChange={(e) => setConf(e.target.value)}
+                  required
+                />
+              </div>
+              <Button type="submit" className="w-full" disabled={busy}>
+                {busy ? "Salvando…" : "Trocar senha"}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full"
+                onClick={enviarCodigo}
+                disabled={busy}
+              >
+                Reenviar código
+              </Button>
             </form>
           )}
         </CardContent>

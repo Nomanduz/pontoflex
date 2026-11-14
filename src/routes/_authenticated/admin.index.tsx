@@ -2,10 +2,28 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatDuration, formatTime, groupByDay, presenca, startOfDay, TIPO_LABEL, workedMs, type Tipo } from "@/lib/ponto";
+import {
+  formatDuration,
+  formatTime,
+  groupByDay,
+  presenca,
+  startOfDay,
+  TIPO_LABEL,
+  workedMs,
+  type Tipo,
+} from "@/lib/ponto";
 
 export const Route = createFileRoute("/_authenticated/admin/")({
-  head: () => ({ meta: [{ title: "Dashboard — PontoFlex" }, { name: "description", content: "Indicadores de presença da empresa." }, { property: "og:title", content: "Dashboard — PontoFlex" }, { property: "og:description", content: "Indicadores de presença da empresa." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
+  head: () => ({
+    meta: [
+      { title: "Dashboard — PontoFlex" },
+      { name: "description", content: "Indicadores de presença da empresa." },
+      { property: "og:title", content: "Dashboard — PontoFlex" },
+      { property: "og:description", content: "Indicadores de presença da empresa." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+    ],
+  }),
   component: Dashboard,
 });
 
@@ -49,18 +67,27 @@ function Dashboard() {
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {cards.map(([t, v]) => (
           <Card key={t}>
-            <CardHeader className="pb-1"><CardTitle className="text-xs font-medium text-muted-foreground">{t}</CardTitle></CardHeader>
+            <CardHeader className="pb-1">
+              <CardTitle className="text-xs font-medium text-muted-foreground">{t}</CardTitle>
+            </CardHeader>
             <CardContent className="font-display text-3xl font-bold text-primary">{v}</CardContent>
           </Card>
         ))}
       </div>
       <Card>
-        <CardHeader><CardTitle>Últimas marcações de hoje</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle>Últimas marcações de hoje</CardTitle>
+        </CardHeader>
         <CardContent className="divide-y">
-          {data.pts.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma marcação hoje.</p>}
+          {data.pts.length === 0 && (
+            <p className="text-sm text-muted-foreground">Nenhuma marcação hoje.</p>
+          )}
           {data.pts.slice(0, 10).map((pt) => (
             <div key={pt.id} className="flex justify-between py-2 text-sm">
-              <span>{nome.get(pt.funcionario_id) ?? "—"} · <span className="text-muted-foreground">{TIPO_LABEL[pt.tipo]}</span></span>
+              <span>
+                {nome.get(pt.funcionario_id) ?? "—"} ·{" "}
+                <span className="text-muted-foreground">{TIPO_LABEL[pt.tipo]}</span>
+              </span>
               <span className="font-mono font-semibold">{formatTime(pt.data_hora)}</span>
             </div>
           ))}

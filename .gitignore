@@ -34,3 +34,12 @@ dist-ssr
 # Windows folder icon
 desktop.ini
 pontoflex.ico
+
+# Gerados
+public/mediapipe/
+src/routeTree.gen.ts
+.env
+.env.*
+!.env.example
+.output/
+.vercel/

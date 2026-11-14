@@ -14,7 +14,19 @@ import { dayKey, formatKey } from "@/lib/ponto";
 import { statusFolha } from "@/lib/folha-status";
 
 export const Route = createFileRoute("/_authenticated/admin/fechamento")({
-  head: () => ({ meta: [{ title: "Fechamento de ponto — PontoFlex" }, { name: "description", content: "Fechamento mensal do ponto (21 a 20) e assinaturas." }, { property: "og:title", content: "Fechamento de ponto — PontoFlex" }, { property: "og:description", content: "Fechamento mensal do ponto (21 a 20) e assinaturas." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
+  head: () => ({
+    meta: [
+      { title: "Fechamento de ponto — PontoFlex" },
+      { name: "description", content: "Fechamento mensal do ponto (21 a 20) e assinaturas." },
+      { property: "og:title", content: "Fechamento de ponto — PontoFlex" },
+      {
+        property: "og:description",
+        content: "Fechamento mensal do ponto (21 a 20) e assinaturas.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+    ],
+  }),
   component: Fechamento,
 });
 
@@ -30,7 +42,10 @@ function Fechamento() {
     queryFn: async () => {
       const [{ data: funcs }, { data: fcs }] = await Promise.all([
         supabase.from("funcionarios").select("id, nome").order("nome"),
-        supabase.from("fechamentos").select("id, funcionario_id, func_assinado_em, empresa_assinado_em").eq("periodo_inicio", inicio),
+        supabase
+          .from("fechamentos")
+          .select("id, funcionario_id, func_assinado_em, empresa_assinado_em")
+          .eq("periodo_inicio", inicio),
       ]);
       return { funcs: funcs ?? [], fcs: new Map((fcs ?? []).map((f) => [f.funcionario_id, f])) };
     },
@@ -55,14 +70,35 @@ function Fechamento() {
     <>
       <h1 className="font-display text-2xl font-bold">Fechamento de ponto</h1>
       <div className="flex items-center justify-between gap-2">
-        <Button size="icon" variant="outline" aria-label="Período anterior" onClick={() => setInicio(deslocarPeriodo(inicio, -1).inicio)}><ChevronLeft /></Button>
-        <span className="text-center font-medium">{fmt(inicio)} a {fmt(fim)}</span>
-        <Button size="icon" variant="outline" aria-label="Próximo período" disabled={inicio >= periodoDe(hoje).inicio} onClick={() => setInicio(deslocarPeriodo(inicio, 1).inicio)}><ChevronRight /></Button>
+        <Button
+          size="icon"
+          variant="outline"
+          aria-label="Período anterior"
+          onClick={() => setInicio(deslocarPeriodo(inicio, -1).inicio)}
+        >
+          <ChevronLeft />
+        </Button>
+        <span className="text-center font-medium">
+          {fmt(inicio)} a {fmt(fim)}
+        </span>
+        <Button
+          size="icon"
+          variant="outline"
+          aria-label="Próximo período"
+          disabled={inicio >= periodoDe(hoje).inicio}
+          onClick={() => setInicio(deslocarPeriodo(inicio, 1).inicio)}
+        >
+          <ChevronRight />
+        </Button>
       </div>
       <Button className="w-full sm:w-auto" disabled={!podeFechar || busy} onClick={onFechar}>
-        <Lock className="size-4" /> {busy ? "Fechando…" : podeFechar ? "Fechar período" : "Período ainda em andamento"}
+        <Lock className="size-4" />{" "}
+        {busy ? "Fechando…" : podeFechar ? "Fechar período" : "Período ainda em andamento"}
       </Button>
-      <p className="text-xs text-muted-foreground">O fechamento gera a folha de cada funcionário. Folhas ainda não assinadas podem ser fechadas de novo para incluir correções.</p>
+      <p className="text-xs text-muted-foreground">
+        O fechamento gera a folha de cada funcionário. Folhas ainda não assinadas podem ser fechadas
+        de novo para incluir correções.
+      </p>
       <Card>
         <CardContent className="divide-y pt-4">
           {data?.funcs.map((f) => {
@@ -74,9 +110,15 @@ function Fechamento() {
                 {fc && s ? (
                   <div className="flex items-center gap-2">
                     <Badge variant={s.variant}>{s.label}</Badge>
-                    <Button size="sm" variant="ghost" asChild><Link to="/folha/$id" params={{ id: fc.id }}>Ver</Link></Button>
+                    <Button size="sm" variant="ghost" asChild>
+                      <Link to="/folha/$id" params={{ id: fc.id }}>
+                        Ver
+                      </Link>
+                    </Button>
                   </div>
-                ) : <span className="text-muted-foreground">Não fechada</span>}
+                ) : (
+                  <span className="text-muted-foreground">Não fechada</span>
+                )}
               </div>
             );
           })}
