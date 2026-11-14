@@ -136,14 +136,17 @@ export const identificarRosto = createServerFn({ method: "POST" })
       throw e;
     }
     if (!achado) {
-      await logTerminal(
-        supabaseAdmin,
-        emp.id,
-        "identificacao_falhou",
-        null,
-        "Rosto não reconhecido",
-      );
-      return { encontrado: null };
+      // Sem nenhum rosto aprovado, a falha é de configuração, não do rosto: avisar o motivo.
+      const { count: aprovados } = await supabaseAdmin
+        .from("funcionarios")
+        .select("id", { count: "exact", head: true })
+        .eq("empresa_id", emp.id)
+        .eq("foto_status", "aprovada");
+      const motivo = aprovados
+        ? "Rosto não reconhecido"
+        : "Nenhum rosto aprovado ainda (aprovar em Funcionários)";
+      await logTerminal(supabaseAdmin, emp.id, "identificacao_falhou", null, motivo);
+      return { encontrado: null, semRostosAprovados: !aprovados };
     }
     const { data: f } = await supabaseAdmin
       .from("funcionarios")

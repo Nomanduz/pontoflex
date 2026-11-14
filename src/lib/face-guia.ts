@@ -42,7 +42,7 @@ export const MENSAGENS: Record<Etapa, string> = {
 };
 
 export const LIMITES = {
-  larguraMin: 0.38,
+  larguraMin: 0.3,
   larguraMax: 0.85,
   desvioCentroX: 0.14,
   centroY: 0.46,

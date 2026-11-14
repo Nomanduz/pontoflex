@@ -233,7 +233,11 @@ function ModoLeitura({ sessao, onExpirar }: { sessao: Sessao; onExpirar: () => v
     try {
       const r = await identificar({ data: { token: sessao.token, imagem: img } });
       if (!r.encontrado) {
-        setAviso("Rosto não reconhecido. Tente novamente ou procure o RH.");
+        setAviso(
+          "semRostosAprovados" in r && r.semRostosAprovados
+            ? "Nenhum rosto foi aprovado ainda. O administrador precisa aprovar as fotos em Funcionários → Aprovar foto."
+            : "Rosto não reconhecido. Se você cadastrou o rosto agora, aguarde a aprovação do administrador ou procure o RH.",
+        );
         return;
       }
       setSelfie(img);

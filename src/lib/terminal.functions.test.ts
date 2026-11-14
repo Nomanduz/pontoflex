@@ -180,6 +180,16 @@ describe("identificação e confirmação (fluxo do totem)", () => {
     await expect(identificar({ data: { token, imagem: SELFIE } })).rejects.toThrow("indisponível");
   });
 
+  it("sem nenhum rosto aprovado, avisa que falta a aprovação do administrador", async () => {
+    mocks.buscarRosto.mockResolvedValue(null);
+    const token = await tokenLeitura();
+    expect((await identificar({ data: { token, imagem: SELFIE } })).encontrado).toBeNull();
+    mocks.admin.db.funcionarios[0].foto_status = "pendente";
+    const r = await identificar({ data: { token, imagem: SELFIE } });
+    expect(r).toMatchObject({ encontrado: null, semRostosAprovados: true });
+    expect(mocks.admin.db.terminal_logs.at(-1).detalhe).toMatch(/Nenhum rosto aprovado/);
+  });
+
   it("funcionário desativado ou com rosto não aprovado não é identificado", async () => {
     mocks.buscarRosto.mockResolvedValue({ funcionarioId: "f-ana", similaridade: 99 });
     mocks.admin.db.funcionarios[0].ativo = false;
