@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1792018721326,
+      "tag": "0000_pontoflex_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792166720597,
+      "tag": "0001_facial_escalas_fechamento",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792400588768,
+      "tag": "0002_terminal_senhas_mestras",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793988390277,
+      "tag": "0003_ajustes_ponto_e_troca_senha",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793991010996,
+      "tag": "0004_codigos_senha_empresa",
+      "breakpoints": true
+    }
+  ]
+}
