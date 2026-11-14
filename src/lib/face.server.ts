@@ -32,7 +32,7 @@ function client() {
       "Reconhecimento facial não configurado (AWS). Avise o administrador.",
     );
   }
-  _client ??= new RekognitionClient({ region: process.env["AWS_REGION"] ?? "us-east-1" });
+  _client ??= new RekognitionClient({ region: process.env["AWS_REGION"] ?? "us-east-2" });
   return _client;
 }
 
