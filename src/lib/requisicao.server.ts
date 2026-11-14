@@ -9,10 +9,15 @@ export function ipDaRequisicao(): string {
   );
 }
 
-/** Endereço público do app para links em e-mails (APP_URL tem prioridade). */
+/**
+ * Endereço público do app para links em e-mails.
+ * Ordem: APP_URL (domínio próprio) → domínio de produção que a Vercel informa → endereço da requisição.
+ */
 export function urlDoApp(): string {
   const env = process.env["APP_URL"]?.replace(/\/+$/, "");
   if (env) return env;
+  const vercel = process.env["VERCEL_PROJECT_PRODUCTION_URL"];
+  if (vercel) return `https://${vercel}`;
   const host = getRequestHeader("x-forwarded-host") ?? getRequestHeader("host") ?? "localhost:8080";
   const proto =
     getRequestHeader("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
