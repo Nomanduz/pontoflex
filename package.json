@@ -16,7 +16,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "db:migrate": "bun --env-file=.env scripts/migrate.ts",
-    "criar-superadmin": "bun --env-file=.env scripts/criar-superadmin.ts"
+    "criar-superadmin": "bun --env-file=.env scripts/criar-superadmin.ts",
+    "testar-aws": "bun --env-file=.env scripts/testar-aws.ts"
   },
   "overrides": {
     "rolldown": "1.2.1"

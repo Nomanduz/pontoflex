@@ -38,7 +38,7 @@ Você vai precisar de contas gratuitas ou baratas em: **Supabase** (banco), **Ve
    - Copie `.env.example` para `.env` e preencha as chaves do Supabase e o `DATABASE_URL`.
 3. **Banco:** `bun run db:migrate` aplica as migrações em ordem e cria o bucket privado `faces`.
 4. **Segredo:** gere o `APP_SECRET` com o comando que está no `.env.example`.
-5. **AWS Rekognition:** crie um usuário IAM com a política abaixo e coloque as chaves no `.env`.
+5. **AWS Rekognition:** crie um usuário IAM sem acesso ao console, anexe a política gerenciada `AmazonRekognitionFullAccess` (ou a política mínima abaixo), gere uma chave de acesso e coloque no `.env`. Confira com `bun run testar-aws`.
    ```json
    { "Version": "2012-10-17", "Statement": [{ "Effect": "Allow", "Action": [
      "rekognition:CreateCollection", "rekognition:DeleteCollection", "rekognition:IndexFaces",
