@@ -49,7 +49,12 @@ async function enviar(msg: {
         ...(msg.replyTo ? { reply_to: msg.replyTo } : {}),
       }),
     });
-    if (!r.ok) throw new Error(`Falha no envio de e-mail (Resend ${r.status})`);
+    if (!r.ok) {
+      const corpo = (await r.json().catch(() => null)) as { message?: string } | null;
+      throw new Error(
+        `Falha no envio de e-mail (Resend ${r.status}${corpo?.message ? `: ${corpo.message}` : ""})`,
+      );
+    }
     return { sent: true };
   }
   if (process.env["SMTP_HOST"] && process.env["SMTP_USER"] && process.env["SMTP_PASS"]) {
@@ -75,6 +80,18 @@ async function enviar(msg: {
     throw new Error("Envio de e-mail não configurado (SMTP ou RESEND_API_KEY).");
   console.warn(`[email não configurado] Para: ${msg.to} | ${msg.subject}\n${msg.text}`);
   return { sent: false, reason: "nao_configurado" };
+}
+
+/** Diagnóstico sem expor segredos: qual caminho de envio está ativo e com qual remetente. */
+export function configuracaoEmail() {
+  const chave = process.env["RESEND_API_KEY"] ?? "";
+  return {
+    resend: chave
+      ? `sim (começa com "${chave.slice(0, 3)}", ${chave.length} caracteres${/\s|"|'/.test(chave) ? ", CONTÉM ESPAÇO OU ASPAS" : ""})`
+      : "não configurado",
+    remetente: remetente(),
+    smtp: process.env["SMTP_HOST"] ? "configurado (usado só sem Resend)" : "não configurado",
+  };
 }
 
 export async function sendTemplateEmail(

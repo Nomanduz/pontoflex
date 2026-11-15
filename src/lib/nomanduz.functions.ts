@@ -230,3 +230,26 @@ export const excluirEmpresa = createServerFn({ method: "POST" })
       .eq("empresa_id", emp.id);
     return { ok: true };
   });
+
+/** Botão "Enviar e-mail de teste" do painel: mostra o caminho de envio e o erro exato, sem segredos. */
+export const testarEmail = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await exigirSuperadmin(context.userId);
+    const { sendTemplateEmail, emailNomanduz, configuracaoEmail } =
+      await import("./email-templates/send-email");
+    const { TEMPLATES } = await import("./email-templates/registry");
+    const config = configuracaoEmail();
+    const para = emailNomanduz();
+    try {
+      const r = await sendTemplateEmail("nova-solicitacao", para, {
+        templateData: {
+          ...(TEMPLATES["nova-solicitacao"]?.previewData ?? {}),
+          razao_social: "TESTE DE ENVIO",
+        },
+      });
+      return { ok: r.sent, para, config, erro: r.sent ? null : "Envio não configurado" };
+    } catch (e) {
+      return { ok: false, para, config, erro: (e as Error).message };
+    }
+  });

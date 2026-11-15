@@ -5,6 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { Building2, Check, Copy, Inbox, KeyRound, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/AppShell";
+import { TesteEmail } from "@/components/TesteEmail";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -116,7 +117,10 @@ function Painel() {
 
   return (
     <>
-      <h1 className="font-display text-2xl font-bold">Painel Nomanduz</h1>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <h1 className="font-display text-2xl font-bold">Painel Nomanduz</h1>
+        <TesteEmail />
+      </div>
       <Tabs defaultValue="solicitacoes">
         <TabsList>
           <TabsTrigger value="solicitacoes" className="gap-2">
