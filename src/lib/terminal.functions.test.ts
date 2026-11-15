@@ -243,10 +243,50 @@ describe("identificação e confirmação (fluxo do totem)", () => {
     expect(mocks.admin.db.pontos).toHaveLength(0);
   });
 
+  it("cerca geográfica: margem de erro do GPS evita barrar quem está no local", async () => {
+    cenario({ raio_m: 50 });
+    mocks.buscarRosto.mockResolvedValue({ funcionarioId: "f-ana", similaridade: 99 });
+    const token = await tokenLeitura();
+    const r = await identificar({ data: { token, imagem: SELFIE } });
+    const longe78m = { latitude: SP.latitude - 78 / 111_320, longitude: SP.longitude };
+    const ok = await confirmar({
+      data: { token, confirmacao: r.encontrado.confirmacao, ...longe78m, precisao: 40 } as any,
+    });
+    expect(ok.tipo).toBe("ENTRADA");
+    expect(mocks.admin.db.pontos).toHaveLength(1);
+  });
+
   it("exige localização válida", async () => {
     await expect(
       confirmar({ data: { token: "x", confirmacao: "y", latitude: Number.NaN, longitude: 0 } }),
     ).rejects.toThrow("Localização obrigatória");
+  });
+});
+
+describe("bloquear o terminal", () => {
+  const bloquear = fn<{ token: string; senha: string }, { ok: boolean }>(T.bloquearTerminal);
+
+  it("exige uma senha mestra válida", async () => {
+    const token = await tokenLeitura();
+    await expect(bloquear({ data: { token, senha: "" } })).rejects.toThrow("Digite a senha mestra");
+    await expect(bloquear({ data: { token, senha: "chute123" } })).rejects.toThrow(
+      "Senha mestra incorreta",
+    );
+    expect((await bloquear({ data: { token, senha: "leitura123" } })).ok).toBe(true);
+    // a senha de cadastro também serve (o responsável pode saber só uma delas)
+    expect((await bloquear({ data: { token, senha: "cadastro123" } })).ok).toBe(true);
+    const acoes = mocks.admin.db.terminal_logs.map((l: any) => l.acao);
+    expect(acoes).toContain("bloqueio_negado");
+    expect(acoes).toContain("bloqueio");
+  });
+
+  it("trava após 8 senhas erradas", async () => {
+    const token = await tokenLeitura();
+    for (let i = 0; i < 8; i++)
+      await expect(bloquear({ data: { token, senha: `errada${i}` } })).rejects.toThrow("incorreta");
+    await expect(bloquear({ data: { token, senha: "leitura123" } })).rejects.toThrow(
+      "Muitas tentativas",
+    );
   });
 });
 

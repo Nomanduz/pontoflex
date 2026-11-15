@@ -37,6 +37,8 @@ const ACAO_LABEL: Record<string, string> = {
   registro_negado: "Registro negado",
   cadastro_rosto: "Rosto enviado para aprovação",
   desbloqueio: "Terminal desbloqueado",
+  bloqueio: "Terminal bloqueado",
+  bloqueio_negado: "Tentativa de bloqueio negada",
   identificacao_rejeitada: 'Funcionário informou "não sou eu"',
 };
 
@@ -190,10 +192,17 @@ function CercaCard() {
     setBusy(true);
     try {
       const pos = await obterLocalizacao(0);
+      if (
+        pos.precisao > 50 &&
+        !confirm(
+          `O GPS deste aparelho está impreciso agora (±${pos.precisao} m). O ideal é salvar perto de uma janela ou em área aberta. Salvar mesmo assim?`,
+        )
+      )
+        return;
       await salvar({
         data: { latitude: pos.lat, longitude: pos.lng, raio_m: Number(raio || emp?.raio_m || 200) },
       });
-      toast.success("Local da empresa salvo");
+      toast.success(`Local da empresa salvo (precisão ±${pos.precisao} m)`);
       qc.invalidateQueries({ queryKey: ["empresa-cerca"] });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao salvar");
@@ -240,13 +249,14 @@ function CercaCard() {
             inputMode="numeric"
             placeholder={String(emp?.raio_m ?? 200)}
             value={raio}
-            onChange={(e) => setRaio(e.target.value.replace(/D/g, ""))}
+            onChange={(e) => setRaio(e.target.value.replace(/\D/g, ""))}
             className="max-w-40"
           />
         </div>
         <p className="text-xs text-muted-foreground">
           Faça isto estando na empresa: o local atual deste aparelho vira o centro da área
-          permitida.
+          permitida. Recomendado: 100 a 200 m. O GPS de celular em ambiente fechado costuma errar de
+          20 a 80 m, e essa margem de erro já é descontada automaticamente.
         </p>
         <div className="flex flex-wrap gap-2">
           <Button onClick={definirAqui} disabled={busy}>

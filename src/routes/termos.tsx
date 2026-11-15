@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Brand } from "@/components/Brand";
+import { VoltarInicio } from "@/components/VoltarInicio";
 
 export const Route = createFileRoute("/termos")({
   head: () => ({ meta: [{ title: "Termos de uso e privacidade — PontoFlex" }] }),
@@ -10,6 +11,7 @@ export const Route = createFileRoute("/termos")({
 function Termos() {
   return (
     <main className="mx-auto max-w-3xl space-y-6 px-5 py-10 text-sm leading-relaxed">
+      <VoltarInicio />
       <Brand className="text-primary" />
       <h1 className="font-display text-2xl font-bold">Termos de uso e política de privacidade</h1>
       <p className="text-muted-foreground">

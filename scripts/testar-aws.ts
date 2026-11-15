@@ -13,7 +13,8 @@ if (!id || !segredo) {
   console.error("✗ AWS_ACCESS_KEY_ID e AWS_SECRET_ACCESS_KEY estão vazios no .env.");
   process.exit(1);
 }
-if (!id.startsWith("AKIA")) console.warn("! A Access key normalmente começa com AKIA. Confira se não trocou os campos.");
+if (!id.startsWith("AKIA"))
+  console.warn("! A Access key normalmente começa com AKIA. Confira se não trocou os campos.");
 
 const client = new RekognitionClient({ region: regiao });
 const colecao = `pontoflex-teste-${Date.now()}`;

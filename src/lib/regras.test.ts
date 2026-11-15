@@ -75,6 +75,17 @@ describe("geolocalização", () => {
     expect(avaliarCerca(cerca, -23.5614, -46.6559).fora).toBe(true);
   });
 
+  it("cerca: desconta a margem de erro do GPS, limitada a 100 m", () => {
+    const cerca = { latitude: -23.5503, longitude: -46.6339, raio_m: 50 };
+    // ~78 m de distância (caso real do teste em campo)
+    const lat = -23.5503 - 78 / 111_320;
+    expect(avaliarCerca(cerca, lat, -46.6339).fora).toBe(true);
+    expect(avaliarCerca(cerca, lat, -46.6339, 35).fora).toBe(false);
+    // precisão absurda não libera marcação a 2,5 km
+    expect(avaliarCerca(cerca, -23.5614, -46.6559, 5000).fora).toBe(true);
+    expect(avaliarCerca(cerca, lat, -46.6339, Number.NaN).fora).toBe(true);
+  });
+
   it("rejeita coordenadas inválidas ou zeradas", () => {
     expect(coordenadasValidas(-23.5, -46.6)).toBe(true);
     expect(coordenadasValidas(0, 0)).toBe(false);

@@ -119,7 +119,9 @@ function PontoPage() {
     setBusy(true);
     try {
       const pos = await obterLocalizacao();
-      const r = await registrar({ data: { imagem: img, latitude: pos.lat, longitude: pos.lng } });
+      const r = await registrar({
+        data: { imagem: img, latitude: pos.lat, longitude: pos.lng, precisao: pos.precisao },
+      });
       setRecibo({
         tipo: r.tipo,
         data_hora: r.data_hora,

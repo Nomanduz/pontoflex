@@ -101,6 +101,38 @@ export const desbloquearTerminal = createServerFn({ method: "POST" })
     return { token, modo, empresa: emp.razao_social as string };
   });
 
+/**
+ * Bloquear o terminal também exige uma senha mestra: o funcionário que está na frente do aparelho
+ * não consegue desligar a leitura por engano ou de propósito.
+ */
+export const bloquearTerminal = createServerFn({ method: "POST" })
+  .validator((d: { token: string; senha: string }) => {
+    if (!d?.senha) throw new Error("Digite a senha mestra para bloquear o terminal");
+    return d;
+  })
+  .handler(async ({ data }) => {
+    const s = await sessaoValida(data.token);
+    const chave = `bloquear:${s.emp.id}`;
+    await s.exigirAbaixoDoLimite(s.supabaseAdmin, chave, 8, 15);
+    const confere =
+      s.conferirSenha(data.senha, s.emp.senha_mestra_leitura) ||
+      s.conferirSenha(data.senha, s.emp.senha_mestra_cadastro);
+    if (!confere) {
+      await s.registrarTentativa(s.supabaseAdmin, chave);
+      await logTerminal(
+        s.supabaseAdmin,
+        s.emp.id,
+        "bloqueio_negado",
+        null,
+        "Senha mestra incorreta",
+      );
+      throw new Error("Senha mestra incorreta");
+    }
+    await s.limparTentativas(s.supabaseAdmin, chave);
+    await logTerminal(s.supabaseAdmin, s.emp.id, "bloqueio", null, `Modo ${s.modo}`);
+    return { ok: true };
+  });
+
 /** Identifica o funcionário pelo rosto (1 consulta ao Rekognition) e prepara a confirmação. */
 export const identificarRosto = createServerFn({ method: "POST" })
   .validator((d: { token: string; imagem: string }) => d)
@@ -197,11 +229,19 @@ export const identificarRosto = createServerFn({ method: "POST" })
 
 /** O funcionário conferiu os dados na tela e tocou em "Confirmar". */
 export const confirmarPontoTerminal = createServerFn({ method: "POST" })
-  .validator((d: { token: string; confirmacao: string; latitude: number; longitude: number }) => {
-    if (!coordenadasValidas(d?.latitude, d?.longitude))
-      throw new Error("Localização obrigatória. Permita o acesso à localização neste terminal.");
-    return d;
-  })
+  .validator(
+    (d: {
+      token: string;
+      confirmacao: string;
+      latitude: number;
+      longitude: number;
+      precisao?: number;
+    }) => {
+      if (!coordenadasValidas(d?.latitude, d?.longitude))
+        throw new Error("Localização obrigatória. Permita o acesso à localização neste terminal.");
+      return d;
+    },
+  )
   .handler(async ({ data }) => {
     const { supabaseAdmin, emp, lerToken } = await sessaoValida(data.token, "leitura");
     const c = lerToken<Confirmacao>("confirmar", data.confirmacao);
@@ -225,6 +265,7 @@ export const confirmarPontoTerminal = createServerFn({ method: "POST" })
         similaridade: c.s,
         latitude: data.latitude,
         longitude: data.longitude,
+        precisao: data.precisao,
       });
     } catch (e) {
       await logTerminal(supabaseAdmin, emp.id, "registro_negado", c.f, (e as Error).message);

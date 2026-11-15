@@ -23,6 +23,16 @@ import { maskDocumento } from "@/lib/doc";
 import { acompanharLocalizacao, obterLocalizacao } from "@/lib/localizacao";
 import { formatTime, TIPO_LABEL, type Tipo } from "@/lib/ponto";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { VoltarInicio } from "@/components/VoltarInicio";
+import {
+  bloquearTerminal,
   cadastrarRostoTerminal,
   confirmarPontoTerminal,
   desbloquearTerminal,
@@ -103,6 +113,7 @@ function TerminalPage() {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center bg-hero px-5 py-10">
         <div className="w-full max-w-sm space-y-6 rounded-2xl bg-card p-6 shadow-xl">
+          <VoltarInicio />
           <Brand className="text-primary" />
           <div>
             <h1 className="font-display text-xl font-bold">Terminal de ponto</h1>
@@ -153,9 +164,7 @@ function TerminalPage() {
             {sessao.modo === "leitura" ? "Registro de ponto" : "Cadastro facial"}
           </h1>
         </div>
-        <Button variant="outline" size="sm" onClick={() => trocar(null)}>
-          Bloquear
-        </Button>
+        <BloquearTerminal token={sessao.token} onBloqueado={() => trocar(null)} />
       </div>
       {sessao.modo === "leitura" ? (
         <ModoLeitura sessao={sessao} onExpirar={() => trocar(null)} />
@@ -163,6 +172,80 @@ function TerminalPage() {
         <ModoCadastro sessao={sessao} onExpirar={() => trocar(null)} />
       )}
     </main>
+  );
+}
+
+/** Bloquear pede a senha mestra: evita que o terminal seja desligado por engano ou de propósito. */
+function BloquearTerminal({ token, onBloqueado }: { token: string; onBloqueado: () => void }) {
+  const bloquear = useServerFn(bloquearTerminal);
+  const [aberto, setAberto] = useState(false);
+  const [senha, setSenha] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function enviar(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await bloquear({ data: { token, senha } });
+      setAberto(false);
+      onBloqueado();
+      toast.success("Terminal bloqueado");
+    } catch (err) {
+      if (expirou(err)) {
+        setAberto(false);
+        onBloqueado();
+        return;
+      }
+      toast.error(err instanceof Error ? err.message : "Não foi possível bloquear");
+    } finally {
+      setBusy(false);
+      setSenha("");
+    }
+  }
+
+  return (
+    <Dialog open={aberto} onOpenChange={setAberto}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm">
+          <LockKeyhole className="size-4" /> Bloquear
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Bloquear terminal</DialogTitle>
+          <DialogDescription>
+            Somente o responsável pode bloquear. Digite a senha mestra da empresa.
+          </DialogDescription>
+        </DialogHeader>
+        <form className="space-y-4" onSubmit={enviar}>
+          <Input
+            type="password"
+            autoComplete="off"
+            required
+            autoFocus
+            aria-label="Senha mestra"
+            placeholder="Senha mestra"
+            value={senha}
+            onChange={(e) => setSenha(e.target.value)}
+            className="h-11"
+          />
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              className="flex-1"
+              onClick={() => setAberto(false)}
+              disabled={busy}
+            >
+              Cancelar
+            </Button>
+            <Button type="submit" className="flex-1" disabled={busy || !senha}>
+              {busy && <Loader2 className="animate-spin" />} Bloquear
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -261,6 +344,7 @@ function ModoLeitura({ sessao, onExpirar }: { sessao: Sessao; onExpirar: () => v
           confirmacao: pessoa.confirmacao,
           latitude: pos.lat,
           longitude: pos.lng,
+          precisao: pos.precisao,
         },
       });
       setRecibo({ tipo: r.tipo, data_hora: r.data_hora, nome: r.nome });

@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- cada modelo de e-mail tem props próprias */
 import type { ComponentType } from "react";
 import { template as codigoSenhaEmpresa } from "./codigo-senha-empresa";
+import { redefinirSenha } from "./redefinir-senha";
 import { ativacao, novaSolicitacao, solicitacaoRecebida, solicitacaoRecusada } from "./cadastro";
 
 export interface TemplateEntry {
@@ -18,4 +19,5 @@ export const TEMPLATES: Record<string, TemplateEntry> = {
   "solicitacao-recebida": solicitacaoRecebida,
   ativacao: ativacao,
   "solicitacao-recusada": solicitacaoRecusada,
+  "redefinir-senha": redefinirSenha,
 };

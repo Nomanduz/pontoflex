@@ -15,16 +15,25 @@ export interface Cerca {
   raio_m: number | null;
 }
 
-/** Confere a marcação contra a cerca da empresa. Sem cerca configurada, tudo é permitido. */
+/** Maior margem de erro do GPS descontada da distância (acima disso a leitura não é confiável). */
+export const PRECISAO_MAX_M = 100;
+
+/**
+ * Confere a marcação contra a cerca da empresa. Sem cerca configurada, tudo é permitido.
+ * O GPS de celular em ambiente fechado erra dezenas de metros: a margem de erro informada pelo
+ * aparelho (limitada a PRECISAO_MAX_M) é descontada para não barrar quem está no local.
+ */
 export function avaliarCerca(
   cerca: Cerca,
   lat: number,
   lon: number,
+  precisao = 0,
 ): { distancia_m: number | null; fora: boolean } {
   if (cerca.latitude == null || cerca.longitude == null || !cerca.raio_m)
     return { distancia_m: null, fora: false };
   const d = distanciaM(Number(cerca.latitude), Number(cerca.longitude), lat, lon);
-  return { distancia_m: d, fora: d > cerca.raio_m };
+  const margem = Number.isFinite(precisao) ? Math.min(Math.max(precisao, 0), PRECISAO_MAX_M) : 0;
+  return { distancia_m: d, fora: d - margem > cerca.raio_m };
 }
 
 export function coordenadasValidas(lat: unknown, lon: unknown): boolean {

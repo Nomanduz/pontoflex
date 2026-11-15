@@ -26,6 +26,8 @@ export async function registrarMarcacao(
     similaridade: number;
     latitude: number;
     longitude: number;
+    /** Margem de erro do GPS informada pelo aparelho, em metros. */
+    precisao?: number | undefined;
   },
 ): Promise<{ tipo: Tipo; data_hora: string; nome: string; distancia_m: number | null }> {
   const { data: f } = await admin
@@ -37,10 +39,11 @@ export async function registrarMarcacao(
   if (!f || !f.ativo || f.foto_status !== "aprovada")
     throw new Error("Funcionário não encontrado ou desativado");
 
-  const cerca = avaliarCerca(p.empresa, p.latitude, p.longitude);
+  const cerca = avaliarCerca(p.empresa, p.latitude, p.longitude, p.precisao);
   if (cerca.fora) {
+    const gps = p.precisao ? `, precisão do GPS ±${Math.round(p.precisao)} m` : "";
     throw new Error(
-      `Marcação fora do local permitido: você está a ${cerca.distancia_m} m da empresa (limite ${p.empresa.raio_m} m).`,
+      `Marcação fora do local permitido: você está a ${cerca.distancia_m} m da empresa (limite ${p.empresa.raio_m} m${gps}). Se você está no local, procure o administrador.`,
     );
   }
   const tipo = await proximaMarcacao(admin, f.id);

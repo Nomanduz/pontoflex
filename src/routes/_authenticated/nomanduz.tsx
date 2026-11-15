@@ -2,7 +2,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Building2, Check, Copy, Inbox, Trash2, X } from "lucide-react";
+import { Building2, Check, Copy, Inbox, KeyRound, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/AppShell";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +30,7 @@ import {
   alterarStatusEmpresa,
   aprovarSolicitacao,
   excluirEmpresa,
+  gerarLinkRedefinicao,
   listarEmpresas,
   listarSolicitacoesCadastro,
   recusarSolicitacao,
@@ -69,7 +70,9 @@ function Painel() {
   const recusar = useServerFn(recusarSolicitacao);
   const status = useServerFn(alterarStatusEmpresa);
   const excluir = useServerFn(excluirEmpresa);
+  const linkSenha = useServerFn(gerarLinkRedefinicao);
   const [codigo, setCodigo] = useState<{
+    titulo?: string;
     empresa: string;
     codigo: string;
     link: string;
@@ -238,7 +241,25 @@ function Painel() {
                           </SelectContent>
                         </Select>
                       </td>
-                      <td className="text-right">
+                      <td className="whitespace-nowrap text-right">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          aria-label="Gerar link para redefinir a senha"
+                          title="Redefinir senha da empresa"
+                          disabled={busy}
+                          onClick={async () => {
+                            const r = await acao(() => linkSenha({ data: { id: e.id } }));
+                            if (r)
+                              setCodigo({
+                                titulo: "Redefinir senha (link vale 24 h)",
+                                empresa: e.razao_social,
+                                ...r,
+                              });
+                          }}
+                        >
+                          <KeyRound className="size-4" />
+                        </Button>
                         <Button
                           size="icon"
                           variant="ghost"
@@ -266,7 +287,9 @@ function Painel() {
       <Dialog open={!!codigo} onOpenChange={(o) => !o && setCodigo(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Código de ativação — {codigo?.empresa}</DialogTitle>
+            <DialogTitle>
+              {codigo?.titulo ?? "Código de ativação"} — {codigo?.empresa}
+            </DialogTitle>
           </DialogHeader>
           <p className="text-sm">
             {codigo?.emailEnviado

@@ -1,6 +1,14 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
-import { Building2, Loader2, ShieldCheck, UserRound } from "lucide-react";
+import {
+  ArrowLeft,
+  Building2,
+  Loader2,
+  MonitorSmartphone,
+  ShieldCheck,
+  UserRound,
+} from "lucide-react";
+import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Brand } from "@/components/Brand";
@@ -11,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { empresaEmail, maskDocumento } from "@/lib/doc";
 import { getPapel } from "@/lib/session";
 import { loginPorMatricula } from "@/lib/terminal.functions";
+import { pedirRedefinicaoSenha } from "@/lib/redefinir.functions";
 
 export const Route = createFileRoute("/login")({
   head: () => ({
@@ -34,6 +43,22 @@ function LoginPage() {
   const [aba, setAba] = useState("funcionario");
   const [matricula, setMatricula] = useState("");
   const [senha, setSenha] = useState("");
+  const [esqueci, setEsqueci] = useState(false);
+  const [pedidoEnviado, setPedidoEnviado] = useState(false);
+  const pedirRedefinicao = useServerFn(pedirRedefinicaoSenha);
+
+  async function pedirLink(e: FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await pedirRedefinicao({ data: { documento } });
+      setPedidoEnviado(true);
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function entrar(e: FormEvent, tipo: "admin" | "funcionario" | "superadmin") {
     e.preventDefault();
@@ -130,6 +155,8 @@ function LoginPage() {
             onValueChange={(v) => {
               setAba(v);
               setSenha("");
+              setEsqueci(false);
+              setPedidoEnviado(false);
             }}
           >
             <TabsList className="mb-6 grid h-11 w-full grid-cols-2">
@@ -166,6 +193,13 @@ function LoginPage() {
                 </div>
                 {senhaField}
                 {submit}
+                <LinkEsqueci onClick={() => setEsqueci((v) => !v)} />
+                {esqueci && (
+                  <p className="rounded-lg bg-muted p-3 text-xs">
+                    A senha do funcionário é criada pela empresa. Peça ao responsável para gerar uma
+                    senha nova em <strong>Funcionários → Redefinir senha</strong>.
+                  </p>
+                )}
                 <p className="text-xs text-muted-foreground">
                   A senha é fornecida pela empresa. Para bater o ponto sem login, use o terminal da
                   empresa.
@@ -173,30 +207,48 @@ function LoginPage() {
               </form>
             </TabsContent>
             <TabsContent value="admin">
-              <form className="space-y-4" onSubmit={(e) => entrar(e, "admin")}>
-                <div className="space-y-2">
-                  <Label htmlFor="documento">CPF ou CNPJ da empresa</Label>
-                  <Input
-                    id="documento"
-                    inputMode="numeric"
-                    required
-                    value={documento}
-                    onChange={(e) => setDocumento(maskDocumento(e.target.value))}
-                    className="h-11"
-                  />
-                </div>
-                {senhaField}
-                {submit}
-                <p className="text-center text-sm text-muted-foreground">
-                  Ainda não usa o PontoFlex?{" "}
-                  <Link to="/cadastro" className="font-semibold text-primary underline">
-                    Cadastre sua empresa
-                  </Link>
-                </p>
-              </form>
+              {esqueci ? (
+                <EsqueciEmpresa
+                  documento={documento}
+                  setDocumento={setDocumento}
+                  enviado={pedidoEnviado}
+                  loading={loading}
+                  onSubmit={pedirLink}
+                  onVoltar={() => {
+                    setEsqueci(false);
+                    setPedidoEnviado(false);
+                  }}
+                />
+              ) : (
+                <form className="space-y-4" onSubmit={(e) => entrar(e, "admin")}>
+                  <div className="space-y-2">
+                    <Label htmlFor="documento">CPF ou CNPJ da empresa</Label>
+                    <Input
+                      id="documento"
+                      inputMode="numeric"
+                      required
+                      value={documento}
+                      onChange={(e) => setDocumento(maskDocumento(e.target.value))}
+                      className="h-11"
+                    />
+                  </div>
+                  {senhaField}
+                  {submit}
+                  <LinkEsqueci onClick={() => setEsqueci(true)} />
+                  <p className="text-center text-sm text-muted-foreground">
+                    Ainda não usa o PontoFlex?{" "}
+                    <Link to="/cadastro" className="font-semibold text-primary underline">
+                      Cadastre sua empresa
+                    </Link>
+                  </p>
+                </form>
+              )}
             </TabsContent>
             <TabsContent value="superadmin">
               <form className="space-y-4" onSubmit={(e) => entrar(e, "superadmin")}>
+                <p className="flex items-center gap-2 text-sm font-semibold">
+                  <ShieldCheck className="size-4 text-primary" /> Acesso equipe Nomanduz
+                </p>
                 <div className="space-y-2">
                   <Label htmlFor="email">E-mail da equipe</Label>
                   <Input
@@ -210,6 +262,25 @@ function LoginPage() {
                 </div>
                 {senhaField}
                 {submit}
+                <LinkEsqueci onClick={() => setEsqueci((v) => !v)} />
+                {esqueci && (
+                  <p className="rounded-lg bg-muted p-3 text-xs">
+                    Por segurança, o acesso da equipe não tem recuperação pela internet. A senha é
+                    redefinida somente pelo responsável técnico da Nomanduz.
+                  </p>
+                )}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-full"
+                  onClick={() => {
+                    setAba("funcionario");
+                    setSenha("");
+                    setEsqueci(false);
+                  }}
+                >
+                  <ArrowLeft className="size-4" /> Voltar
+                </Button>
               </form>
             </TabsContent>
           </Tabs>
@@ -222,8 +293,73 @@ function LoginPage() {
               <ShieldCheck className="size-3" /> Acesso equipe Nomanduz
             </button>
           )}
+          <Link
+            to="/terminal"
+            className="mt-3 flex w-full items-center justify-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <MonitorSmartphone className="size-3" /> Abrir terminal de ponto
+          </Link>
         </div>
       </section>
     </main>
+  );
+}
+
+function LinkEsqueci({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="block w-full text-center text-sm font-medium text-primary hover:underline"
+    >
+      Esqueci minha senha
+    </button>
+  );
+}
+
+function EsqueciEmpresa(p: {
+  documento: string;
+  setDocumento: (v: string) => void;
+  enviado: boolean;
+  loading: boolean;
+  onSubmit: (e: FormEvent) => void;
+  onVoltar: () => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="font-semibold">Recuperar senha da empresa</h3>
+        <p className="text-sm text-muted-foreground">
+          Enviamos um link para o e-mail informado no cadastro da empresa.
+        </p>
+      </div>
+      {p.enviado ? (
+        <p className="rounded-lg bg-muted p-3 text-sm">
+          Se o documento estiver cadastrado, o link chega em alguns minutos no e-mail da empresa
+          (confira também o spam). Ele vale por 1 hora. Não recebeu? Fale com a equipe PontoFlex
+          pelo e-mail <strong>academiadaprevencaobr@gmail.com</strong>.
+        </p>
+      ) : (
+        <form className="space-y-4" onSubmit={p.onSubmit}>
+          <div className="space-y-2">
+            <Label htmlFor="documento-recuperar">CPF ou CNPJ da empresa</Label>
+            <Input
+              id="documento-recuperar"
+              inputMode="numeric"
+              required
+              value={p.documento}
+              onChange={(e) => p.setDocumento(maskDocumento(e.target.value))}
+              className="h-11"
+            />
+          </div>
+          <Button type="submit" size="lg" className="h-12 w-full" disabled={p.loading}>
+            {p.loading && <Loader2 className="animate-spin" />} Enviar link
+          </Button>
+        </form>
+      )}
+      <Button type="button" variant="ghost" className="w-full" onClick={p.onVoltar}>
+        <ArrowLeft className="size-4" /> Voltar ao login
+      </Button>
+    </div>
   );
 }

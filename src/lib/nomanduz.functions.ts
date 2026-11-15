@@ -159,6 +159,26 @@ export const alterarStatusEmpresa = createServerFn({ method: "POST" })
   });
 
 /**
+ * Empresa esqueceu a senha: gera um link de uso único (24 h) para criar uma senha nova.
+ * Tenta mandar por e-mail; o link também volta para o painel, para envio pelo WhatsApp.
+ */
+export const gerarLinkRedefinicao = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((d: { id: string }) => d)
+  .handler(async ({ data, context }) => {
+    const admin = await exigirSuperadmin(context.userId);
+    const { data: emp } = await admin
+      .from("empresas")
+      .select("id, razao_social, responsavel, email")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (!emp) throw new Error("Empresa não encontrada");
+    const { criarRedefinicao } = await import("./redefinir.server");
+    const r = await criarRedefinicao(admin, emp, "nomanduz");
+    return { codigo: r.codigo, link: r.link, emailEnviado: r.emailEnviado };
+  });
+
+/**
  * Remove uma empresa inteira (ex.: empresa de teste): funcionários, marcações, fotos,
  * coleção facial e acessos. Exige digitar o CPF/CNPJ para confirmar.
  */

@@ -46,7 +46,7 @@ export const cadastrarRosto = createServerFn({ method: "POST" })
 
 export const registrarPonto = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((d: { imagem: string; latitude: number; longitude: number }) => {
+  .validator((d: { imagem: string; latitude: number; longitude: number; precisao?: number }) => {
     if (!coordenadasValidas(d?.latitude, d?.longitude))
       throw new Error("Localização obrigatória. Permita o acesso à localização.");
     return d;
@@ -95,6 +95,7 @@ export const registrarPonto = createServerFn({ method: "POST" })
         similaridade: achado.similaridade,
         latitude: data.latitude,
         longitude: data.longitude,
+        precisao: data.precisao,
       });
       return { tipo: r.tipo, data_hora: r.data_hora, confianca: achado.similaridade / 100 };
     } catch (e) {

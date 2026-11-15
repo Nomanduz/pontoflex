@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { CheckCircle2, KeyRound, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Brand } from "@/components/Brand";
+import { VoltarInicio } from "@/components/VoltarInicio";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -77,6 +78,7 @@ function AtivarPage() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-hero px-5 py-10">
       <div className="w-full max-w-md space-y-6 rounded-2xl bg-card p-6 shadow-xl">
+        <VoltarInicio />
         <Brand className="text-primary" />
         {pronto ? (
           <div className="space-y-3 text-center">

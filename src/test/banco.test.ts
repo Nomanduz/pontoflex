@@ -164,6 +164,14 @@ describe("isolamento entre empresas (RLS)", () => {
     expect((await db.query(`select * from public.solicitacoes_cadastro`)).rows).toHaveLength(0);
     expect((await db.query(`select * from public.tentativas`)).rows).toHaveLength(0);
     expect((await db.query(`select * from public.codigos_senha_empresa`)).rows).toHaveLength(0);
+    // links de redefinição de senha: nem leitura nem gravação pelo navegador
+    await expect(db.query(`select * from public.redefinicoes_senha`)).rejects.toThrow();
+    await expect(
+      db.query(
+        `insert into public.redefinicoes_senha (empresa_id, codigo_hash, expira_em, origem)
+         select id, 'x', now() + interval '1 day', 'email' from public.empresas limit 1`,
+      ),
+    ).rejects.toThrow();
   });
 
   it("a equipe Nomanduz (superadmin) vê solicitações e todas as empresas", async () => {

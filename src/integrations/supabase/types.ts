@@ -445,6 +445,36 @@ export type Database = {
         };
         Relationships: [];
       };
+      redefinicoes_senha: {
+        Row: {
+          codigo_hash: string;
+          created_at: string;
+          empresa_id: string;
+          expira_em: string;
+          id: string;
+          origem: string;
+          usado_em: string | null;
+        };
+        Insert: {
+          codigo_hash: string;
+          created_at?: string;
+          empresa_id: string;
+          expira_em: string;
+          id?: string;
+          origem: string;
+          usado_em?: string | null;
+        };
+        Update: {
+          codigo_hash?: string;
+          created_at?: string;
+          empresa_id?: string;
+          expira_em?: string;
+          id?: string;
+          origem?: string;
+          usado_em?: string | null;
+        };
+        Relationships: [];
+      };
       tentativas: {
         Row: {
           chave: string;
