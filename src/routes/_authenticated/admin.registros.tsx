@@ -5,6 +5,7 @@ import { MapPin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { CampoData } from "@/components/CampoDataHora";
+import { FiltroDepartamento } from "@/components/FiltroDepartamento";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -32,6 +33,7 @@ export const Route = createFileRoute("/_authenticated/admin/registros")({
 function Registros() {
   const hoje = dayKey(new Date());
   const [func, setFunc] = useState("todos");
+  const [depto, setDepto] = useState("todos");
   const [de, setDe] = useState(dayKey(new Date(Date.now() - 7 * 864e5)));
   const [ate, setAte] = useState(hoje);
 
@@ -55,10 +57,22 @@ function Registros() {
     },
   });
   const nome = new Map((funcs ?? []).map((f) => [f.id, f.nome]));
+  const deptoDe = new Map((funcs ?? []).map((f) => [f.id, f.departamento]));
+  const visiveis = (pts ?? []).filter(
+    (p) => depto === "todos" || deptoDe.get(p.funcionario_id) === depto,
+  );
+  const funcsFiltro = (funcs ?? []).filter((f) => depto === "todos" || f.departamento === depto);
 
   return (
     <>
       <h1 className="font-display text-2xl font-bold">Registros</h1>
+      <FiltroDepartamento
+        valor={depto}
+        onChange={(v) => {
+          setDepto(v);
+          setFunc("todos");
+        }}
+      />
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="space-y-1">
           <Label>Funcionário</Label>
@@ -68,7 +82,7 @@ function Registros() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="todos">Todos</SelectItem>
-              {funcs?.map((f) => (
+              {funcsFiltro.map((f) => (
                 <SelectItem key={f.id} value={f.id}>
                   {f.nome}
                 </SelectItem>
@@ -87,10 +101,10 @@ function Registros() {
       </div>
       <Card>
         <CardContent className="divide-y pt-4">
-          {pts?.length === 0 && (
+          {visiveis.length === 0 && (
             <p className="py-2 text-sm text-muted-foreground">Nenhuma marcação no período.</p>
           )}
-          {pts?.map((p) => (
+          {visiveis.map((p) => (
             <div key={p.id} className="flex items-center justify-between gap-2 py-2 text-sm">
               <div>
                 <p className="font-medium">{nome.get(p.funcionario_id) ?? "—"}</p>

@@ -41,6 +41,132 @@ export type Database = {
         };
         Relationships: [];
       };
+      atestados: {
+        Row: {
+          id: string;
+          empresa_id: string;
+          funcionario_id: string;
+          inicio: string;
+          fim: string;
+          arquivo_path: string;
+          observacao: string | null;
+          status: string;
+          resposta: string | null;
+          afastamento_id: string | null;
+          analisado_em: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          empresa_id: string;
+          funcionario_id: string;
+          inicio: string;
+          fim: string;
+          arquivo_path: string;
+          observacao?: string | null;
+          status?: string;
+          resposta?: string | null;
+          afastamento_id?: string | null;
+          analisado_em?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          empresa_id?: string;
+          funcionario_id?: string;
+          inicio?: string;
+          fim?: string;
+          arquivo_path?: string;
+          observacao?: string | null;
+          status?: string;
+          resposta?: string | null;
+          afastamento_id?: string | null;
+          analisado_em?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      banco_horas_lancamentos: {
+        Row: {
+          id: string;
+          empresa_id: string;
+          funcionario_id: string;
+          data: string;
+          minutos: number;
+          tipo: string;
+          descricao: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          empresa_id: string;
+          funcionario_id: string;
+          data: string;
+          minutos: number;
+          tipo: string;
+          descricao: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          empresa_id?: string;
+          funcionario_id?: string;
+          data?: string;
+          minutos?: number;
+          tipo?: string;
+          descricao?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      comunicados: {
+        Row: {
+          id: string;
+          empresa_id: string;
+          titulo: string;
+          mensagem: string;
+          departamento: string | null;
+          importante: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          empresa_id: string;
+          titulo: string;
+          mensagem: string;
+          departamento?: string | null;
+          importante?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          empresa_id?: string;
+          titulo?: string;
+          mensagem?: string;
+          departamento?: string | null;
+          importante?: boolean;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      comunicados_leitura: {
+        Row: {
+          comunicado_id: string;
+          funcionario_id: string;
+          lido_em: string;
+        };
+        Insert: {
+          comunicado_id: string;
+          funcionario_id: string;
+          lido_em?: string;
+        };
+        Update: {
+          comunicado_id?: string;
+          funcionario_id?: string;
+          lido_em?: string;
+        };
+        Relationships: [];
+      };
       codigos_senha_empresa: {
         Row: {
           codigo_hash: string;
@@ -73,6 +199,7 @@ export type Database = {
       };
       empresas: {
         Row: {
+          banco_horas_meses: number;
           documento: string;
           created_at: string;
           email: string | null;
@@ -91,6 +218,7 @@ export type Database = {
           raio_m: number | null;
         };
         Insert: {
+          banco_horas_meses?: number;
           documento: string;
           created_at?: string;
           email?: string | null;
@@ -109,6 +237,7 @@ export type Database = {
           raio_m?: number | null;
         };
         Update: {
+          banco_horas_meses?: number;
           documento?: string;
           created_at?: string;
           email?: string | null;
@@ -130,6 +259,8 @@ export type Database = {
       };
       ferias: {
         Row: {
+          ciente_em: string | null;
+          ciente_ip: string | null;
           id: string;
           empresa_id: string;
           funcionario_id: string;
@@ -142,6 +273,8 @@ export type Database = {
           created_at: string;
         };
         Insert: {
+          ciente_em?: string | null;
+          ciente_ip?: string | null;
           id?: string;
           empresa_id: string;
           funcionario_id: string;
@@ -154,6 +287,8 @@ export type Database = {
           created_at?: string;
         };
         Update: {
+          ciente_em?: string | null;
+          ciente_ip?: string | null;
           id?: string;
           empresa_id?: string;
           funcionario_id?: string;
@@ -241,6 +376,19 @@ export type Database = {
       };
       funcionarios: {
         Row: {
+          departamento: string | null;
+          email_contato: string | null;
+          cep: string | null;
+          logradouro: string | null;
+          numero: string | null;
+          complemento: string | null;
+          bairro: string | null;
+          cidade: string | null;
+          uf: string | null;
+          emergencia_nome: string | null;
+          emergencia_parentesco: string | null;
+          emergencia_telefone: string | null;
+          foto_perfil_path: string | null;
           data_admissao: string | null;
           tipo_contrato: string;
           experiencia_dias: number | null;
@@ -276,6 +424,19 @@ export type Database = {
           desativado_em: string | null;
         };
         Insert: {
+          departamento?: string | null;
+          email_contato?: string | null;
+          cep?: string | null;
+          logradouro?: string | null;
+          numero?: string | null;
+          complemento?: string | null;
+          bairro?: string | null;
+          cidade?: string | null;
+          uf?: string | null;
+          emergencia_nome?: string | null;
+          emergencia_parentesco?: string | null;
+          emergencia_telefone?: string | null;
+          foto_perfil_path?: string | null;
           data_admissao?: string | null;
           tipo_contrato?: string;
           experiencia_dias?: number | null;
@@ -311,6 +472,19 @@ export type Database = {
           desativado_em?: string | null;
         };
         Update: {
+          departamento?: string | null;
+          email_contato?: string | null;
+          cep?: string | null;
+          logradouro?: string | null;
+          numero?: string | null;
+          complemento?: string | null;
+          bairro?: string | null;
+          cidade?: string | null;
+          uf?: string | null;
+          emergencia_nome?: string | null;
+          emergencia_parentesco?: string | null;
+          emergencia_telefone?: string | null;
+          foto_perfil_path?: string | null;
           data_admissao?: string | null;
           tipo_contrato?: string;
           experiencia_dias?: number | null;

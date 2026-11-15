@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CampoData, CampoHora } from "@/components/CampoDataHora";
+import { FiltroDepartamento, useDepartamentos } from "@/components/FiltroDepartamento";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
@@ -70,6 +71,7 @@ const vazio = {
   cpf: "",
   telefone: "",
   cargo: "",
+  departamento: "",
   matricula: "",
   escala: "5x2",
   dias_semana: [1, 2, 3, 4, 5] as number[],
@@ -136,6 +138,15 @@ function Funcionarios() {
     queryFn: async () => (await supabase.from("funcionarios").select("*").order("nome")).data ?? [],
   });
   const refresh = () => qc.invalidateQueries();
+  const { data: departamentos } = useDepartamentos();
+  const [filtroDepto, setFiltroDepto] = useState("todos");
+  const [verDesligados, setVerDesligados] = useState(false);
+  const lista = (funcs ?? []).filter(
+    (f) =>
+      (filtroDepto === "todos" || f.departamento === filtroDepto) &&
+      (verDesligados || !f.data_desligamento),
+  );
+  const desligados = (funcs ?? []).filter((f) => f.data_desligamento).length;
 
   async function salvar() {
     setSaving(true);
@@ -161,6 +172,7 @@ function Funcionarios() {
           nome: form.nome.trim(),
           telefone: form.telefone || null,
           cargo: form.cargo || null,
+          departamento: form.departamento.trim() || null,
           matricula: form.matricula.trim(),
           ...escalaCampos(form),
           ...contratoCampos(form),
@@ -250,6 +262,15 @@ function Funcionarios() {
           <Plus className="size-4" /> Novo
         </Button>
       </div>
+      <div className="flex flex-wrap items-end gap-4">
+        <FiltroDepartamento valor={filtroDepto} onChange={setFiltroDepto} />
+        {desligados > 0 && (
+          <label className="flex items-center gap-2 pb-2 text-sm">
+            <Switch checked={verDesligados} onCheckedChange={setVerDesligados} />
+            Mostrar desligados ({desligados})
+          </label>
+        )}
+      </div>
       <Card>
         <CardContent className="overflow-x-auto pt-4">
           <table className="w-full text-sm">
@@ -257,7 +278,7 @@ function Funcionarios() {
               <tr>
                 <th className="py-2">Nome</th>
                 <th>CPF</th>
-                <th className="hidden md:table-cell">Cargo</th>
+                <th className="hidden md:table-cell">Cargo / depto.</th>
                 <th className="hidden md:table-cell">Matrícula</th>
                 <th>Rosto</th>
                 <th>Status</th>
@@ -265,7 +286,7 @@ function Funcionarios() {
               </tr>
             </thead>
             <tbody>
-              {funcs?.map((f) => (
+              {lista.map((f) => (
                 <tr key={f.id} className="border-t">
                   <td className="py-2">
                     <Link
@@ -299,7 +320,12 @@ function Funcionarios() {
                     )}
                   </td>
                   <td className="whitespace-nowrap font-mono text-xs">{f.cpf}</td>
-                  <td className="hidden md:table-cell">{f.cargo}</td>
+                  <td className="hidden md:table-cell">
+                    {f.cargo}
+                    {f.departamento && (
+                      <span className="block text-xs text-muted-foreground">{f.departamento}</span>
+                    )}
+                  </td>
                   <td className="hidden md:table-cell">{f.matricula}</td>
                   <td>
                     {f.foto_status === "pendente" ? (
@@ -358,6 +384,7 @@ function Funcionarios() {
                           cpf: f.cpf,
                           telefone: f.telefone ?? "",
                           cargo: f.cargo ?? "",
+                          departamento: f.departamento ?? "",
                           matricula: f.matricula ?? "",
                           escala: f.escala,
                           dias_semana: f.dias_semana ?? [],
@@ -426,7 +453,7 @@ function Funcionarios() {
               ))}
             </tbody>
           </table>
-          {funcs?.length === 0 && (
+          {lista.length === 0 && (
             <p className="py-4 text-sm text-muted-foreground">Nenhum funcionário cadastrado.</p>
           )}
         </CardContent>
@@ -461,9 +488,26 @@ function Funcionarios() {
                 <Input value={form.matricula} onChange={set("matricula")} />
               </div>
             </div>
-            <div className="space-y-1">
-              <Label>Telefone</Label>
-              <Input value={form.telefone} onChange={set("telefone")} />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Departamento / setor</Label>
+                <Input
+                  value={form.departamento}
+                  onChange={set("departamento")}
+                  list="lista-departamentos"
+                  maxLength={80}
+                  placeholder="Ex.: Produção"
+                />
+                <datalist id="lista-departamentos">
+                  {departamentos?.map((d) => (
+                    <option key={d} value={d} />
+                  ))}
+                </datalist>
+              </div>
+              <div className="space-y-1">
+                <Label>Telefone</Label>
+                <Input value={form.telefone} onChange={set("telefone")} />
+              </div>
             </div>
             <ContratoForm form={form} setForm={setForm} />
             <div className="space-y-1">

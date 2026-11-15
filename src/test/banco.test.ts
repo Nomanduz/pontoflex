@@ -326,6 +326,89 @@ describe("marcações e guarda do histórico", () => {
     ).toMatch(/permission denied/);
   });
 
+  it("Comunica RH: comunicado por departamento só chega a quem é dele; leitura é do próprio", async () => {
+    const EA = "10000000-0000-0000-0000-00000000000a";
+    const FA = "20000000-0000-0000-0000-0000000000a1";
+    await comoServico();
+    await db.exec(`update public.funcionarios set departamento = 'Produção' where id = '${FA}'`);
+    await como(U.empA);
+    await db.query(
+      `insert into public.comunicados (empresa_id, titulo, mensagem) values ($1, 'Geral', 'para todos')`,
+      [EA],
+    );
+    await db.query(
+      `insert into public.comunicados (empresa_id, titulo, mensagem, departamento) values ($1, 'Prod', 'só produção', 'Produção'), ($1, 'Vendas', 'só vendas', 'Vendas')`,
+      [EA],
+    );
+    expect(
+      await falha(
+        `insert into public.comunicados (empresa_id, titulo, mensagem) values ('10000000-0000-0000-0000-00000000000b', 'x', 'y')`,
+      ),
+    ).toMatch(/row-level security/);
+    await como(U.funcA1);
+    const { rows } = await db.query<{ titulo: string; id: string }>(
+      `select id, titulo from public.comunicados order by titulo`,
+    );
+    expect(rows.map((r) => r.titulo)).toEqual(["Geral", "Prod"]);
+    await db.query(
+      `insert into public.comunicados_leitura (comunicado_id, funcionario_id) values ($1, $2)`,
+      [rows[0]!.id, FA],
+    );
+    // não marca leitura em nome de outra pessoa
+    expect(
+      await falha(
+        `insert into public.comunicados_leitura (comunicado_id, funcionario_id) values ($1, '20000000-0000-0000-0000-0000000000b1')`,
+        [rows[1]!.id],
+      ),
+    ).toMatch(/row-level security/);
+    // funcionário não publica comunicado
+    expect(
+      await falha(
+        `insert into public.comunicados (empresa_id, titulo, mensagem) values ($1, 'x', 'y')`,
+        [EA],
+      ),
+    ).toMatch(/row-level security/);
+    await como(U.funcB1);
+    expect((await db.query(`select id from public.comunicados`)).rows).toHaveLength(0);
+    await como(U.empA);
+    expect((await db.query(`select * from public.comunicados_leitura`)).rows).toHaveLength(1);
+  });
+
+  it("perfil, banco de horas e atestados: funcionário não altera nada direto pelo navegador", async () => {
+    const EA = "10000000-0000-0000-0000-00000000000a";
+    const FA = "20000000-0000-0000-0000-0000000000a1";
+    await como(U.funcA1);
+    // sem política de UPDATE para o próprio funcionário: nada muda (dados vão pelo servidor)
+    const r = await db.query(
+      `update public.funcionarios set departamento = 'Diretoria' where id = $1`,
+      [FA],
+    );
+    expect(r.affectedRows ?? 0).toBe(0);
+    expect(
+      await falha(
+        `insert into public.banco_horas_lancamentos (empresa_id, funcionario_id, data, minutos, tipo, descricao) values ($1, $2, '2026-11-01', 600, 'ajuste', 'x')`,
+        [EA, FA],
+      ),
+    ).toMatch(/row-level security/);
+    expect(
+      await falha(
+        `insert into public.atestados (empresa_id, funcionario_id, inicio, fim, arquivo_path) values ($1, $2, '2026-11-01', '2026-11-02', 'x')`,
+        [EA, FA],
+      ),
+    ).toMatch(/permission denied/);
+    await como(U.empA);
+    await db.query(
+      `insert into public.banco_horas_lancamentos (empresa_id, funcionario_id, data, minutos, tipo, descricao) values ($1, $2, '2026-11-01', -480, 'folga', 'folga')`,
+      [EA, FA],
+    );
+    await como(U.empB);
+    expect((await db.query(`select id from public.banco_horas_lancamentos`)).rows).toHaveLength(0);
+    await como(U.funcA1);
+    expect((await db.query(`select minutos from public.banco_horas_lancamentos`)).rows).toEqual([
+      { minutos: -480 },
+    ]);
+  });
+
   it("excluir a empresa inteira (empresa de teste) remove tudo de uma vez", async () => {
     await comoServico();
     await db.exec(`delete from public.empresas where id = '10000000-0000-0000-0000-00000000000a'`);

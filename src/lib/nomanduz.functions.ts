@@ -203,13 +203,15 @@ export const excluirEmpresa = createServerFn({ method: "POST" })
       .eq("empresa_id", emp.id);
     // Fotos: pasta da empresa e subpastas de cada funcionário.
     for (const f of funcs ?? []) {
-      const { data: arquivos } = await admin.storage
-        .from("faces")
-        .list(`${emp.id}/${f.id}`, { limit: 1000 });
-      if (arquivos?.length)
-        await admin.storage
-          .from("faces")
-          .remove(arquivos.map((a: { name: string }) => `${emp.id}/${f.id}/${a.name}`));
+      for (const bucket of ["faces", "atestados", "perfil"] as const) {
+        const { data: arquivos } = await admin.storage
+          .from(bucket)
+          .list(`${emp.id}/${f.id}`, { limit: 1000 });
+        if (arquivos?.length)
+          await admin.storage
+            .from(bucket)
+            .remove(arquivos.map((a: { name: string }) => `${emp.id}/${f.id}/${a.name}`));
+      }
     }
     const { removerColecao } = await import("./face.server");
     try {

@@ -14,7 +14,10 @@ export const Route = createFileRoute("/_authenticated/admin")({
         { to: "/admin/funcionarios", label: "Funcionários" },
         { to: "/admin/registros", label: "Registros" },
         { to: "/admin/ajustes", label: "Ajustes" },
+        { to: "/admin/atestados", label: "Atestados" },
         { to: "/admin/fechamento", label: "Fechamento" },
+        { to: "/admin/banco", label: "Banco de horas" },
+        { to: "/admin/comunica", label: "Comunica RH" },
         { to: "/admin/terminal", label: "Terminal" },
         { to: "/admin/senha", label: "Senha" },
       ]}

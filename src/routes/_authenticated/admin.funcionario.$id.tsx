@@ -4,6 +4,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   AlertTriangle,
+  Clock,
+  FileText,
+  Phone,
   ArrowLeft,
   CalendarHeart,
   Lightbulb,
@@ -15,6 +18,10 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { CampoData } from "@/components/CampoDataHora";
+import { ExtratoBanco } from "@/components/ExtratoBanco";
+import { FotoPerfil } from "@/components/FotoPerfil";
+import { carregarMovimentos } from "@/lib/banco-horas-dados";
+import { lerHoras } from "@/lib/banco-horas";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -202,12 +209,16 @@ function Ficha() {
         <p className="mt-2 text-lg font-bold">Ficha de registro do empregado (resumo)</p>
       </div>
 
-      <div>
-        <h1 className="font-display text-2xl font-bold">{f.nome}</h1>
-        <p className="text-sm text-muted-foreground">
-          Matrícula {f.matricula} · {f.cargo || "sem cargo"} ·{" "}
-          {f.data_desligamento ? "Desligado" : f.ativo ? "Ativo" : "Inativo"}
-        </p>
+      <div className="flex items-center gap-3">
+        <FotoPerfil path={f.foto_perfil_path} nome={f.nome} className="size-14 text-lg" />
+        <div>
+          <h1 className="font-display text-2xl font-bold">{f.nome}</h1>
+          <p className="text-sm text-muted-foreground">
+            Matrícula {f.matricula} · {f.cargo || "sem cargo"}
+            {f.departamento ? ` · ${f.departamento}` : ""} ·{" "}
+            {f.data_desligamento ? "Desligado" : f.ativo ? "Ativo" : "Inativo"}
+          </p>
+        </div>
       </div>
 
       {alertas.length > 0 && (
@@ -228,6 +239,8 @@ function Ficha() {
       )}
 
       <DadosContrato f={f} hoje={hoje} />
+      <ContatoCard f={f} />
+      <BancoHorasCard f={f} hoje={hoje} />
       <FeriasCard
         f={f}
         periodos={periodos}
@@ -469,6 +482,16 @@ function FeriasCard({
                   <span className="text-xs text-muted-foreground">
                     {" "}
                     (período {br(x.aquisitivo_inicio)})
+                  </span>
+                </span>
+                <span className="flex items-center gap-1 print:hidden">
+                  <Button size="sm" variant="ghost" asChild>
+                    <Link to="/ferias/aviso/$id" params={{ id: x.id }}>
+                      <FileText className="size-4" /> Aviso
+                    </Link>
+                  </Button>
+                  <span className="text-xs text-muted-foreground">
+                    {x.ciente_em ? "ciente" : "sem ciência"}
                   </span>
                 </span>
                 {x.inicio > hoje && (
@@ -892,6 +915,178 @@ function DesligamentoCard({ f, hoje, onMudou }: { f: Func; hoje: string; onMudou
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </Card>
+  );
+}
+
+function ContatoCard({ f }: { f: Func }) {
+  const endereco = [
+    [f.logradouro, f.numero].filter(Boolean).join(", "),
+    f.complemento,
+    f.bairro,
+    [f.cidade, f.uf].filter(Boolean).join("/"),
+    f.cep,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Phone className="size-5" /> Contato e emergência
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-x-8 md:grid-cols-2">
+        <div>
+          <Linha k="Celular" v={f.telefone || "—"} />
+          <Linha k="E-mail" v={f.email_contato || "—"} />
+          <Linha k="Endereço" v={endereco || "—"} />
+        </div>
+        <div>
+          <Linha
+            k="Emergência"
+            v={
+              f.emergencia_nome
+                ? `${f.emergencia_nome}${f.emergencia_parentesco ? ` (${f.emergencia_parentesco})` : ""}`
+                : "—"
+            }
+          />
+          <Linha k="Telefone de emergência" v={f.emergencia_telefone || "—"} />
+        </div>
+        <p className="pt-2 text-xs text-muted-foreground print:hidden md:col-span-2">
+          O próprio funcionário mantém estes dados em “Meu perfil” no app.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+const TIPOS_LANC = {
+  folga: "Folga compensatória (desconta do saldo)",
+  pagamento: "Horas pagas na folha (desconta do saldo)",
+  ajuste_mais: "Ajuste: adicionar horas",
+  ajuste_menos: "Ajuste: retirar horas",
+} as const;
+
+function BancoHorasCard({ f, hoje }: { f: Func; hoje: string }) {
+  const { data, refetch } = useQuery({
+    queryKey: ["banco-func", f.id],
+    queryFn: async () => {
+      const [movs, { data: emp }] = await Promise.all([
+        carregarMovimentos([f.id]),
+        supabase.from("empresas").select("id, banco_horas_meses").maybeSingle(),
+      ]);
+      return { movs: movs.get(f.id) ?? [], emp };
+    },
+  });
+  const [tipo, setTipo] = useState<keyof typeof TIPOS_LANC>("folga");
+  const [dataL, setDataL] = useState(hoje);
+  const [horas, setHoras] = useState("");
+  const [desc, setDesc] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function lancar() {
+    const min = lerHoras(horas);
+    if (!min) {
+      toast.error("Informe as horas, ex.: 8 ou 2:30");
+      return;
+    }
+    if (!dataL || !desc.trim()) {
+      toast.error("Informe a data e uma descrição");
+      return;
+    }
+    setBusy(true);
+    try {
+      const negativo = tipo !== "ajuste_mais";
+      const { error } = await supabase.from("banco_horas_lancamentos").insert({
+        empresa_id: data!.emp!.id,
+        funcionario_id: f.id,
+        data: dataL,
+        minutos: negativo ? -min : min,
+        tipo: tipo.startsWith("ajuste") ? "ajuste" : tipo,
+        descricao: desc.trim().slice(0, 200),
+      });
+      if (error) throw new Error("Não foi possível lançar");
+      toast.success("Lançamento registrado");
+      setHoras("");
+      setDesc("");
+      refetch();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function excluir(id: string) {
+    if (!confirm("Excluir este lançamento do banco de horas?")) return;
+    const { error } = await supabase.from("banco_horas_lancamentos").delete().eq("id", id);
+    if (error) toast.error("Não foi possível excluir");
+    else refetch();
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Clock className="size-5" /> Banco de horas
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {data ? (
+          <ExtratoBanco
+            movimentos={data.movs}
+            prazoMeses={data.emp?.banco_horas_meses ?? 6}
+            hoje={hoje}
+            onExcluir={excluir}
+          />
+        ) : (
+          <p className="text-sm text-muted-foreground">Carregando…</p>
+        )}
+        {!f.data_desligamento && (
+          <div className="space-y-3 rounded-lg border p-3 print:hidden">
+            <p className="text-sm font-semibold">Lançar no banco</p>
+            <div className="grid gap-3 sm:grid-cols-4">
+              <div className="space-y-1 sm:col-span-2">
+                <Label>Tipo</Label>
+                <Select value={tipo} onValueChange={(v) => setTipo(v as keyof typeof TIPOS_LANC)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(TIPOS_LANC).map(([k, l]) => (
+                      <SelectItem key={k} value={k}>
+                        {l}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label>Data</Label>
+                <CampoData value={dataL} onChange={setDataL} />
+              </div>
+              <div className="space-y-1">
+                <Label>Horas</Label>
+                <Input
+                  placeholder="8 ou 2:30"
+                  value={horas}
+                  onChange={(e) => setHoras(e.target.value)}
+                />
+              </div>
+            </div>
+            <Input
+              placeholder="Descrição (ex.: folga combinada na ponte do feriado)"
+              maxLength={200}
+              value={desc}
+              onChange={(e) => setDesc(e.target.value)}
+            />
+            <Button onClick={lancar} disabled={busy}>
+              Lançar
+            </Button>
+          </div>
+        )}
+      </CardContent>
     </Card>
   );
 }

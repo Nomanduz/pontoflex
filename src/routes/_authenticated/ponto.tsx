@@ -11,10 +11,14 @@ export const Route = createFileRoute("/_authenticated/ponto")({
       papel="funcionario"
       links={[
         { to: "/ponto", label: "Registrar ponto" },
+        { to: "/ponto/comunica", label: "Comunica RH" },
         { to: "/ponto/historico", label: "Espelho" },
-        { to: "/ponto/folhas", label: "Assinar folhas" },
+        { to: "/ponto/banco", label: "Banco de horas" },
+        { to: "/ponto/ferias", label: "Férias" },
+        { to: "/ponto/atestados", label: "Atestados" },
         { to: "/ponto/ajustes", label: "Ajustar ponto" },
-        { to: "/ponto/conta", label: "Minha senha" },
+        { to: "/ponto/folhas", label: "Assinar folhas" },
+        { to: "/ponto/perfil", label: "Meu perfil" },
       ]}
     >
       <Outlet />

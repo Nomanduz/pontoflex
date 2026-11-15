@@ -3,7 +3,8 @@ import { sugerirTrocaSenha } from "@/lib/senha";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { MapPin, Fingerprint, CheckCircle2, ScanFace, Clock } from "lucide-react";
+import { MapPin, Fingerprint, CheckCircle2, ScanFace, Clock, Megaphone } from "lucide-react";
+import { useComunicados } from "@/hooks/use-comunicados";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -183,6 +184,7 @@ function PontoPage() {
 
   return (
     <div className="mx-auto max-w-md space-y-5">
+      <AvisoComunicados />
       <div>
         <h1 className="font-display text-2xl font-bold">Olá, {f?.nome.split(" ")[0] ?? "…"}</h1>
         <p className="capitalize text-muted-foreground">
@@ -305,5 +307,24 @@ function PontoPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+/** Avisa na tela inicial quando há comunicados do RH ainda não lidos. */
+function AvisoComunicados() {
+  const { data } = useComunicados();
+  const novos = (data ?? []).filter((c) => !c.lido_em);
+  if (!novos.length) return null;
+  const importante = novos.some((c) => c.importante);
+  return (
+    <Link
+      to="/ponto/comunica"
+      className={`flex items-center gap-3 rounded-xl p-3 text-sm font-medium ${importante ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary"}`}
+    >
+      <Megaphone className="size-5 shrink-0" />
+      {novos.length === 1
+        ? `Novo comunicado do RH: ${novos[0]!.titulo}`
+        : `Você tem ${novos.length} comunicados do RH para ler`}
+    </Link>
   );
 }

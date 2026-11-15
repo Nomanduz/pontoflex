@@ -143,6 +143,8 @@ export const deleteFuncionario = createServerFn({ method: "POST" })
       "solicitacoes_ponto",
       "afastamentos",
       "ferias",
+      "atestados",
+      "banco_horas_lancamentos",
     ] as const) {
       const { count } = await supabaseAdmin
         .from(tabela)
@@ -220,7 +222,7 @@ export const desligarFuncionario = createServerFn({ method: "POST" })
     const { supabaseAdmin, empresa } = await minhaEmpresa(context);
     const { data: f } = await supabaseAdmin
       .from("funcionarios")
-      .select("id, user_id, face_id, foto_path, data_admissao, data_desligamento")
+      .select("id, user_id, face_id, foto_path, foto_perfil_path, data_admissao, data_desligamento")
       .eq("id", data.id)
       .eq("empresa_id", empresa.id)
       .maybeSingle();
@@ -240,6 +242,7 @@ export const desligarFuncionario = createServerFn({ method: "POST" })
         desativado_em: new Date().toISOString(),
         face_id: null,
         foto_path: null,
+        foto_perfil_path: null,
         foto_status: "sem_foto",
       })
       .eq("id", f.id);
@@ -251,6 +254,7 @@ export const desligarFuncionario = createServerFn({ method: "POST" })
       await removerRosto(empresa.id, [f.face_id]);
     }
     if (f.foto_path) await supabaseAdmin.storage.from("faces").remove([f.foto_path]);
+    if (f.foto_perfil_path) await supabaseAdmin.storage.from("perfil").remove([f.foto_perfil_path]);
     return { ok: true };
   });
 
