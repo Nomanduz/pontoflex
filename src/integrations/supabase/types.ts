@@ -8,6 +8,39 @@ export type Database = {
   };
   public: {
     Tables: {
+      afastamentos: {
+        Row: {
+          id: string;
+          empresa_id: string;
+          funcionario_id: string;
+          tipo: string;
+          inicio: string;
+          fim: string;
+          observacao: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          empresa_id: string;
+          funcionario_id: string;
+          tipo: string;
+          inicio: string;
+          fim: string;
+          observacao?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          empresa_id?: string;
+          funcionario_id?: string;
+          tipo?: string;
+          inicio?: string;
+          fim?: string;
+          observacao?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       codigos_senha_empresa: {
         Row: {
           codigo_hash: string;
@@ -95,6 +128,45 @@ export type Database = {
         };
         Relationships: [];
       };
+      ferias: {
+        Row: {
+          id: string;
+          empresa_id: string;
+          funcionario_id: string;
+          aquisitivo_inicio: string;
+          aquisitivo_fim: string;
+          inicio: string;
+          dias: number;
+          abono_dias: number;
+          observacao: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          empresa_id: string;
+          funcionario_id: string;
+          aquisitivo_inicio: string;
+          aquisitivo_fim: string;
+          inicio: string;
+          dias: number;
+          abono_dias?: number;
+          observacao?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          empresa_id?: string;
+          funcionario_id?: string;
+          aquisitivo_inicio?: string;
+          aquisitivo_fim?: string;
+          inicio?: string;
+          dias?: number;
+          abono_dias?: number;
+          observacao?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       fechamentos: {
         Row: {
           empresa_assinado_em: string | null;
@@ -169,6 +241,15 @@ export type Database = {
       };
       funcionarios: {
         Row: {
+          data_admissao: string | null;
+          tipo_contrato: string;
+          experiencia_dias: number | null;
+          experiencia_prorrogacao_dias: number | null;
+          contrato_fim: string | null;
+          data_desligamento: string | null;
+          motivo_desligamento: string | null;
+          aviso_previo: string | null;
+          desligamento_obs: string | null;
           ativo: boolean;
           cargo: string | null;
           cpf: string;
@@ -195,6 +276,15 @@ export type Database = {
           desativado_em: string | null;
         };
         Insert: {
+          data_admissao?: string | null;
+          tipo_contrato?: string;
+          experiencia_dias?: number | null;
+          experiencia_prorrogacao_dias?: number | null;
+          contrato_fim?: string | null;
+          data_desligamento?: string | null;
+          motivo_desligamento?: string | null;
+          aviso_previo?: string | null;
+          desligamento_obs?: string | null;
           ativo?: boolean;
           cargo?: string | null;
           cpf: string;
@@ -221,6 +311,15 @@ export type Database = {
           desativado_em?: string | null;
         };
         Update: {
+          data_admissao?: string | null;
+          tipo_contrato?: string;
+          experiencia_dias?: number | null;
+          experiencia_prorrogacao_dias?: number | null;
+          contrato_fim?: string | null;
+          data_desligamento?: string | null;
+          motivo_desligamento?: string | null;
+          aviso_previo?: string | null;
+          desligamento_obs?: string | null;
           ativo?: boolean;
           cargo?: string | null;
           cpf?: string;

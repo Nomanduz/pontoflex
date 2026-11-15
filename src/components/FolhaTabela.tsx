@@ -11,6 +11,7 @@ export function FolhaTabela({ folha }: { folha: Folha }) {
           ["Trabalhado", formatDuration(t.trabalhado)],
           ["Saldo", formatDuration(t.saldo)],
           ["Faltas", String(t.faltas)],
+          ...(t.ausencias ? [["Férias/afast.", `${t.ausencias} dia(s)`]] : []),
         ].map(([k, v]) => (
           <div key={k} className="rounded-lg border p-2">
             <p className="text-xs text-muted-foreground">{k}</p>
@@ -44,7 +45,11 @@ export function FolhaTabela({ folha }: { folha: Folha }) {
                 <td className="whitespace-nowrap py-1 capitalize">{formatKey(d.dia)}</td>
                 {d.marcacoes.length === 0 ? (
                   <td colSpan={4} className={d.falta ? "font-semibold text-destructive" : ""}>
-                    {d.falta ? "Falta" : d.trabalho ? "" : "Folga"}
+                    {d.falta
+                      ? "Falta"
+                      : d.trabalho
+                        ? ""
+                        : (d.ausencia ?? (d.feriado ? `Feriado: ${d.feriado}` : "Folga"))}
                   </td>
                 ) : (
                   TIPOS.map((tp) => {

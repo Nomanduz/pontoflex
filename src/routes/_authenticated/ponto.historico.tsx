@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { FolhaTabela } from "@/components/FolhaTabela";
 import { deslocarPeriodo, montarFolha, periodoDe, type EscalaCfg } from "@/lib/escala";
+import { ausenciasDe, somarDias } from "@/lib/vinculo";
 import { dayKey, formatKey } from "@/lib/ponto";
 
 export const Route = createFileRoute("/_authenticated/ponto/historico")({
@@ -45,7 +46,22 @@ function Historico() {
         .gte("data_hora", `${inicio}T00:00:00-03:00`)
         .lt("data_hora", ate)
         .order("data_hora");
-      return f ? montarFolha(f as EscalaCfg, pts ?? [], inicio, fim) : null;
+      if (!f) return null;
+      const { data: afast } = await supabase
+        .from("afastamentos")
+        .select("tipo, inicio, fim")
+        .lte("inicio", fim)
+        .gte("fim", inicio);
+      const { data: ferias } = await supabase
+        .from("ferias")
+        .select("inicio, dias")
+        .lte("inicio", fim)
+        .gte("inicio", somarDias(inicio, -30));
+      return montarFolha(f as EscalaCfg, pts ?? [], inicio, fim, new Date(), {
+        ausencias: ausenciasDe(afast ?? [], ferias ?? []),
+        admissao: f.data_admissao,
+        desligamento: f.data_desligamento,
+      });
     },
   });
   const atual = inicio === periodoDe(dayKey(new Date())).inicio;

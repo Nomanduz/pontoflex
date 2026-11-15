@@ -33,7 +33,13 @@ export const Route = createFileRoute("/_authenticated/folha/$id")({
 
 type Resumo = {
   empresa: { razao_social: string; documento?: string; tipo_documento?: string; cnpj?: string };
-  funcionario: { nome: string; cpf: string; cargo: string | null; matricula: string | null };
+  funcionario: {
+    nome: string;
+    cpf: string;
+    cargo: string | null;
+    matricula: string | null;
+    data_admissao?: string | null;
+  };
   escala: {
     escala: string;
     hora_entrada: string;
@@ -119,6 +125,9 @@ function FolhaPage() {
           {r.funcionario.nome} · CPF {r.funcionario.cpf}
           {r.funcionario.cargo ? ` · ${r.funcionario.cargo}` : ""}
           {r.funcionario.matricula ? ` · Matrícula ${r.funcionario.matricula}` : ""}
+          {r.funcionario.data_admissao
+            ? ` · Admissão ${r.funcionario.data_admissao.split("-").reverse().join("/")}`
+            : ""}
         </p>
         <p className="text-sm text-muted-foreground">
           Escala {ESCALAS[r.escala.escala]?.label ?? r.escala.escala} ·{" "}

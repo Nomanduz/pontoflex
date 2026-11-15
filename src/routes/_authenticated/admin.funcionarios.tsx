@@ -1,8 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Plus, Pencil, Trash2, KeyRound, ScanFace, Check, X } from "lucide-react";
+import { Plus, Pencil, Trash2, KeyRound, ScanFace, Check, X, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -46,6 +46,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { Database } from "@/integrations/supabase/types";
+import { dayKey, formatKey } from "@/lib/ponto";
+import { alertasContrato, terminoPrevisto, TIPOS_CONTRATO, validarContrato } from "@/lib/vinculo";
 
 type Func = Database["public"]["Tables"]["funcionarios"]["Row"];
 
@@ -76,6 +78,22 @@ const vazio = {
   hora_saida_almoco: "12:00",
   hora_retorno_almoco: "13:00",
   hora_saida: "17:00",
+  data_admissao: "",
+  tipo_contrato: "experiencia",
+  experiencia_dias: "45",
+  experiencia_prorrogacao_dias: "45",
+  contrato_fim: "",
+};
+const contratoCampos = (f: typeof vazio) => {
+  const exp = f.tipo_contrato === "experiencia";
+  const comFim = ["determinado", "estagio", "aprendiz"].includes(f.tipo_contrato);
+  return {
+    data_admissao: f.data_admissao || null,
+    tipo_contrato: f.tipo_contrato,
+    experiencia_dias: exp ? Number(f.experiencia_dias) || null : null,
+    experiencia_prorrogacao_dias: exp ? Number(f.experiencia_prorrogacao_dias) || null : null,
+    contrato_fim: comFim ? f.contrato_fim || null : null,
+  };
 };
 const escalaCampos = (f: typeof vazio) => ({
   escala: f.escala,
@@ -128,6 +146,8 @@ function Funcionarios() {
         throw new Error("Escolha os dias de trabalho");
       if (!form.matricula.trim())
         throw new Error("Informe a matrícula (o funcionário usa para entrar)");
+      const erroContrato = validarContrato(contratoCampos(form));
+      if (erroContrato) throw new Error(erroContrato);
       let id = form.id;
       let senha: string | undefined;
       if (!id) {
@@ -143,6 +163,7 @@ function Funcionarios() {
           cargo: form.cargo || null,
           matricula: form.matricula.trim(),
           ...escalaCampos(form),
+          ...contratoCampos(form),
         })
         .eq("id", id!);
       if (error)
@@ -246,7 +267,37 @@ function Funcionarios() {
             <tbody>
               {funcs?.map((f) => (
                 <tr key={f.id} className="border-t">
-                  <td className="py-2 font-medium">{f.nome}</td>
+                  <td className="py-2">
+                    <Link
+                      to="/admin/funcionario/$id"
+                      params={{ id: f.id }}
+                      className="font-medium hover:underline"
+                    >
+                      {f.nome}
+                    </Link>
+                    {f.data_desligamento ? (
+                      <p className="text-xs text-muted-foreground">
+                        Desligado em{" "}
+                        {formatKey(f.data_desligamento, {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                        })}
+                      </p>
+                    ) : (
+                      alertasContrato(f, dayKey(new Date())).map((a) => (
+                        <p
+                          key={a.texto}
+                          className={`text-xs ${a.nivel === "urgente" ? "font-semibold text-destructive" : "text-amber-700 dark:text-amber-400"}`}
+                        >
+                          {a.texto}
+                        </p>
+                      ))
+                    )}
+                    {!f.data_admissao && !f.data_desligamento && (
+                      <p className="text-xs text-muted-foreground">Falta a data de admissão</p>
+                    )}
+                  </td>
                   <td className="whitespace-nowrap font-mono text-xs">{f.cpf}</td>
                   <td className="hidden md:table-cell">{f.cargo}</td>
                   <td className="hidden md:table-cell">{f.matricula}</td>
@@ -285,6 +336,16 @@ function Funcionarios() {
                     </div>
                   </td>
                   <td className="whitespace-nowrap text-right">
+                    <Button size="icon" variant="ghost" asChild>
+                      <Link
+                        to="/admin/funcionario/$id"
+                        params={{ id: f.id }}
+                        aria-label="Ficha, férias e afastamentos"
+                        title="Ficha, férias e afastamentos"
+                      >
+                        <FileText className="size-4" />
+                      </Link>
+                    </Button>
                     <Button
                       size="icon"
                       variant="ghost"
@@ -305,6 +366,13 @@ function Funcionarios() {
                           hora_saida_almoco: hm(f.hora_saida_almoco),
                           hora_retorno_almoco: hm(f.hora_retorno_almoco),
                           hora_saida: hm(f.hora_saida),
+                          data_admissao: f.data_admissao ?? "",
+                          tipo_contrato: f.tipo_contrato,
+                          experiencia_dias: f.experiencia_dias ? String(f.experiencia_dias) : "",
+                          experiencia_prorrogacao_dias: f.experiencia_prorrogacao_dias
+                            ? String(f.experiencia_prorrogacao_dias)
+                            : "",
+                          contrato_fim: f.contrato_fim ?? "",
                         });
                         setOpen(true);
                       }}
@@ -397,6 +465,7 @@ function Funcionarios() {
               <Label>Telefone</Label>
               <Input value={form.telefone} onChange={set("telefone")} />
             </div>
+            <ContratoForm form={form} setForm={setForm} />
             <div className="space-y-1">
               <Label>Escala de trabalho</Label>
               <Select value={form.escala} onValueChange={(v) => setForm({ ...form, escala: v })}>
@@ -602,5 +671,99 @@ function Funcionarios() {
         </AlertDialogContent>
       </AlertDialog>
     </>
+  );
+}
+
+type FormFunc = typeof vazio & { id?: string };
+
+function ContratoForm({
+  form,
+  setForm,
+}: {
+  form: FormFunc;
+  setForm: React.Dispatch<React.SetStateAction<FormFunc>>;
+}) {
+  const termino = terminoPrevisto(contratoCampos(form));
+  const fmt = (k: string) => formatKey(k, { day: "2-digit", month: "2-digit", year: "numeric" });
+  return (
+    <fieldset className="space-y-3 rounded-lg border p-3">
+      <legend className="px-1 text-sm font-semibold">Contrato de trabalho</legend>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <Label>Admissão *</Label>
+          <CampoData
+            value={form.data_admissao}
+            onChange={(v) => setForm((f) => ({ ...f, data_admissao: v }))}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label>Tipo</Label>
+          <Select
+            value={form.tipo_contrato}
+            onValueChange={(v) => setForm((f) => ({ ...f, tipo_contrato: v }))}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(TIPOS_CONTRATO).map(([k, l]) => (
+                <SelectItem key={k} value={k}>
+                  {l}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      {form.tipo_contrato === "experiencia" && (
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <Label>1º período (dias)</Label>
+            <Input
+              inputMode="numeric"
+              value={form.experiencia_dias}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  experiencia_dias: e.target.value.replace(/\D/g, "").slice(0, 2),
+                }))
+              }
+            />
+          </div>
+          <div className="space-y-1">
+            <Label>Prorrogação (dias)</Label>
+            <Input
+              inputMode="numeric"
+              placeholder="opcional"
+              value={form.experiencia_prorrogacao_dias}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  experiencia_prorrogacao_dias: e.target.value.replace(/\D/g, "").slice(0, 2),
+                }))
+              }
+            />
+          </div>
+          <p className="col-span-2 text-xs text-muted-foreground">
+            Máximo de 90 dias somando os dois períodos, com uma única prorrogação (CLT arts. 445 e
+            451). Comum: 45 + 45 ou 30 + 60.
+          </p>
+        </div>
+      )}
+      {["determinado", "estagio", "aprendiz"].includes(form.tipo_contrato) && (
+        <div className="space-y-1">
+          <Label>Término previsto</Label>
+          <CampoData
+            value={form.contrato_fim}
+            onChange={(v) => setForm((f) => ({ ...f, contrato_fim: v }))}
+          />
+        </div>
+      )}
+      {termino && (
+        <p className="rounded bg-muted p-2 text-xs">
+          Contrato termina em <strong>{fmt(termino)}</strong>. O PontoFlex avisa 15 dias antes.
+        </p>
+      )}
+    </fieldset>
   );
 }

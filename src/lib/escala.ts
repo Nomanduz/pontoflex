@@ -102,6 +102,8 @@ export interface DiaFolha {
   dia: string;
   trabalho: boolean;
   feriado: string | null;
+  /** Férias, afastamento ou dia fora do contrato (antes da admissão / após o desligamento). */
+  ausencia: string | null;
   previsto: number;
   trabalhado: number;
   saldo: number;
@@ -117,6 +119,8 @@ export interface Folha {
     saldo: number;
     faltas: number;
     diasTrabalhados: number;
+    /** Dias justificados (férias e afastamentos). */
+    ausencias: number;
   };
 }
 
@@ -126,6 +130,11 @@ export function montarFolha(
   inicio: string,
   fim: string,
   now: Date = new Date(),
+  extras: {
+    ausencias?: { inicio: string; fim: string; rotulo: string }[];
+    admissao?: string | null;
+    desligamento?: string | null;
+  } = {},
 ): Folha {
   const jornadas = groupByJornada(pontos);
   const hoje = dayKey(now);
@@ -136,7 +145,13 @@ export function montarFolha(
       data_hora: m.data_hora,
     }));
     const feriado = feriadoNacional(dia);
-    const trabalho = isDiaTrabalho(cfg, dia) && !feriado;
+    const ausencia =
+      extras.admissao && dia < extras.admissao
+        ? "Antes da admissão"
+        : extras.desligamento && dia > extras.desligamento
+          ? "Após o desligamento"
+          : (extras.ausencias?.find((a) => a.inicio <= dia && dia <= a.fim)?.rotulo ?? null);
+    const trabalho = isDiaTrabalho(cfg, dia) && !feriado && !ausencia;
     const futuro = dia > hoje;
     const previsto = trabalho && !futuro ? prev : 0;
     const trabalhado = workedMs(marcacoes, now);
@@ -148,6 +163,7 @@ export function montarFolha(
       dia,
       trabalho,
       feriado,
+      ausencia,
       previsto,
       trabalhado,
       saldo,
@@ -164,6 +180,9 @@ export function montarFolha(
       saldo: sum((d) => d.saldo),
       faltas: dias.filter((d) => d.falta).length,
       diasTrabalhados: dias.filter((d) => d.marcacoes.length > 0).length,
+      ausencias: dias.filter(
+        (d) => d.ausencia && !d.ausencia.startsWith("Antes") && !d.ausencia.startsWith("Após"),
+      ).length,
     },
   };
 }

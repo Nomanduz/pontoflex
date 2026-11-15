@@ -260,6 +260,72 @@ describe("marcações e guarda do histórico", () => {
     expect(rows).toEqual([{ funcionario_id: null }]);
   });
 
+  it("férias e afastamentos: cada empresa só lança e vê os seus; funcionário só lê os próprios", async () => {
+    const EA = "10000000-0000-0000-0000-00000000000a";
+    const FA = "20000000-0000-0000-0000-0000000000a1";
+    const FB = "20000000-0000-0000-0000-0000000000b1";
+    await como(U.empA);
+    await db.query(
+      `insert into public.afastamentos (empresa_id, funcionario_id, tipo, inicio, fim) values ($1, $2, 'atestado', '2026-11-03', '2026-11-04')`,
+      [EA, FA],
+    );
+    await db.query(
+      `insert into public.ferias (empresa_id, funcionario_id, aquisitivo_inicio, aquisitivo_fim, inicio, dias) values ($1, $2, '2025-01-01', '2025-12-31', '2026-03-02', 30)`,
+      [EA, FA],
+    );
+    // funcionário de outra empresa: bloqueado pela política e pelo gatilho
+    expect(
+      await falha(
+        `insert into public.afastamentos (empresa_id, funcionario_id, tipo, inicio, fim) values ($1, $2, 'atestado', '2026-11-03', '2026-11-04')`,
+        [EA, FB],
+      ),
+    ).toMatch(/não pertence/);
+    expect(
+      await falha(
+        `insert into public.afastamentos (empresa_id, funcionario_id, tipo, inicio, fim) values ('10000000-0000-0000-0000-00000000000b', $1, 'atestado', '2026-11-03', '2026-11-04')`,
+        [FB],
+      ),
+    ).toMatch(/row-level security/);
+    expect(
+      await falha(
+        `insert into public.ferias (empresa_id, funcionario_id, aquisitivo_inicio, aquisitivo_fim, inicio, dias) values ($1, $2, '2025-01-01', '2025-12-31', '2026-03-02', 31)`,
+        [EA, FA],
+      ),
+    ).toMatch(/check/);
+    await como(U.empB);
+    expect((await db.query(`select id from public.afastamentos`)).rows).toHaveLength(0);
+    expect((await db.query(`select id from public.ferias`)).rows).toHaveLength(0);
+    await como(U.funcA1);
+    expect((await db.query(`select tipo from public.afastamentos`)).rows).toEqual([
+      { tipo: "atestado" },
+    ]);
+    expect(
+      await falha(
+        `insert into public.ferias (empresa_id, funcionario_id, aquisitivo_inicio, aquisitivo_fim, inicio, dias) values ($1, $2, '2025-01-01', '2025-12-31', '2026-05-04', 10)`,
+        [EA, FA],
+      ),
+    ).toMatch(/row-level security/);
+    await como(U.funcB1);
+    expect((await db.query(`select id from public.ferias`)).rows).toHaveLength(0);
+  });
+
+  it("contrato: experiência acima de 90 dias é recusada; desligamento não se altera pelo navegador", async () => {
+    await como(U.empA);
+    expect(
+      await falha(
+        `update public.funcionarios set tipo_contrato = 'experiencia', experiencia_dias = 60, experiencia_prorrogacao_dias = 45 where matricula = 'A01'`,
+      ),
+    ).toMatch(/experiencia_total/);
+    await db.query(
+      `update public.funcionarios set data_admissao = '2026-01-05', tipo_contrato = 'experiencia', experiencia_dias = 45, experiencia_prorrogacao_dias = 45 where matricula = 'A01'`,
+    );
+    expect(
+      await falha(
+        `update public.funcionarios set data_desligamento = '2026-11-01' where matricula = 'A01'`,
+      ),
+    ).toMatch(/permission denied/);
+  });
+
   it("excluir a empresa inteira (empresa de teste) remove tudo de uma vez", async () => {
     await comoServico();
     await db.exec(`delete from public.empresas where id = '10000000-0000-0000-0000-00000000000a'`);

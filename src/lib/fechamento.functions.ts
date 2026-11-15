@@ -3,6 +3,7 @@ import { getRequestHeader } from "@tanstack/react-start/server";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { dayKey } from "./ponto";
 import { montarFolha, periodoDe, type EscalaCfg } from "./escala";
+import { ausenciasDe, somarDias } from "./vinculo";
 
 export const fecharPeriodo = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -35,6 +36,20 @@ export const fecharPeriodo = createServerFn({ method: "POST" })
       (existentes ?? []).filter((e) => e.func_assinado_em).map((e) => e.funcionario_id),
     );
 
+    // Férias e afastamentos do período: viram dias justificados no espelho.
+    const { data: afast } = await context.supabase
+      .from("afastamentos")
+      .select("funcionario_id, tipo, inicio, fim")
+      .eq("empresa_id", empresa.id)
+      .lte("inicio", fim)
+      .gte("fim", inicio);
+    const { data: ferias } = await context.supabase
+      .from("ferias")
+      .select("funcionario_id, inicio, dias")
+      .eq("empresa_id", empresa.id)
+      .lte("inicio", fim)
+      .gte("inicio", somarDias(inicio, -30));
+
     // Shifts starting on the last day may end the next morning
     const ate = new Date(Date.parse(`${fim}T00:00:00-03:00`) + 2 * 864e5).toISOString();
     let fechados = 0;
@@ -47,14 +62,28 @@ export const fecharPeriodo = createServerFn({ method: "POST" })
         .gte("data_hora", `${inicio}T00:00:00-03:00`)
         .lt("data_hora", ate)
         .order("data_hora");
-      const folha = montarFolha(f as EscalaCfg, pts ?? [], inicio, fim);
+      const folha = montarFolha(f as EscalaCfg, pts ?? [], inicio, fim, new Date(), {
+        ausencias: ausenciasDe(
+          (afast ?? []).filter((a) => a.funcionario_id === f.id),
+          (ferias ?? []).filter((x) => x.funcionario_id === f.id),
+        ),
+        admissao: f.data_admissao,
+        desligamento: f.data_desligamento,
+      });
       const resumo = {
         empresa: {
           razao_social: empresa.razao_social,
           documento: empresa.documento,
           tipo_documento: empresa.tipo_documento,
         },
-        funcionario: { nome: f.nome, cpf: f.cpf, cargo: f.cargo, matricula: f.matricula },
+        funcionario: {
+          nome: f.nome,
+          cpf: f.cpf,
+          cargo: f.cargo,
+          matricula: f.matricula,
+          data_admissao: f.data_admissao,
+          tipo_contrato: f.tipo_contrato,
+        },
         escala: {
           escala: f.escala,
           hora_entrada: f.hora_entrada,

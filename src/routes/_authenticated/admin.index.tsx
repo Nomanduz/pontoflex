@@ -1,4 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { AlertTriangle } from "lucide-react";
+import { alertasContrato } from "@/lib/vinculo";
+import { alertasFerias, periodosAquisitivos } from "@/lib/ferias";
+import { dayKey as hojeKey } from "@/lib/ponto";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -64,6 +68,7 @@ function Dashboard() {
   return (
     <>
       <h1 className="font-display text-2xl font-bold">Dashboard</h1>
+      <AvisosRH />
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {cards.map(([t, v]) => (
           <Card key={t}>
@@ -94,5 +99,70 @@ function Dashboard() {
         </CardContent>
       </Card>
     </>
+  );
+}
+
+/** Contratos de experiência/temporários terminando e férias perto de vencer. */
+function AvisosRH() {
+  const { data } = useQuery({
+    queryKey: ["avisos-rh"],
+    queryFn: async () => {
+      const hoje = hojeKey(new Date());
+      const [{ data: funcs }, { data: ferias }] = await Promise.all([
+        supabase.from("funcionarios").select("*").eq("ativo", true).is("data_desligamento", null),
+        supabase
+          .from("ferias")
+          .select("funcionario_id, aquisitivo_inicio, inicio, dias, abono_dias"),
+      ]);
+      const out: { id: string; nome: string; nivel: string; texto: string }[] = [];
+      for (const f of funcs ?? []) {
+        const alertas = [...alertasContrato(f, hoje)];
+        if (f.data_admissao)
+          alertas.push(
+            ...alertasFerias(
+              periodosAquisitivos({
+                admissao: f.data_admissao,
+                hoje,
+                lancadas: (ferias ?? []).filter((x) => x.funcionario_id === f.id),
+              }),
+            ),
+          );
+        else
+          alertas.push({
+            nivel: "info",
+            texto: "Cadastre a data de admissão (usada no espelho e nas férias).",
+          });
+        for (const a of alertas) out.push({ id: f.id, nome: f.nome, ...a });
+      }
+      const ordem: Record<string, number> = { urgente: 0, atencao: 1, info: 2 };
+      return out.sort((a, b) => (ordem[a.nivel] ?? 3) - (ordem[b.nivel] ?? 3));
+    },
+  });
+  if (!data?.length) return null;
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <AlertTriangle className="size-5 text-amber-600" /> Avisos de RH
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-1">
+        {data.slice(0, 12).map((a, i) => (
+          <Link
+            key={i}
+            to="/admin/funcionario/$id"
+            params={{ id: a.id }}
+            className={`block rounded-md p-2 text-sm hover:bg-muted ${a.nivel === "urgente" ? "text-destructive" : a.nivel === "atencao" ? "text-amber-800 dark:text-amber-300" : "text-muted-foreground"}`}
+          >
+            <strong>{a.nome}:</strong> {a.texto}
+          </Link>
+        ))}
+        {data.length > 12 && (
+          <p className="text-xs text-muted-foreground">
+            + {data.length - 12} aviso(s) na lista de funcionários.
+          </p>
+        )}
+      </CardContent>
+    </Card>
   );
 }
