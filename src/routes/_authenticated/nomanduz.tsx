@@ -44,7 +44,7 @@ export const Route = createFileRoute("/_authenticated/nomanduz")({
     meta: [{ title: "Painel Nomanduz — PontoFlex" }, { name: "robots", content: "noindex" }],
   }),
   component: () => (
-    <AppShell links={[{ to: "/nomanduz", label: "Painel Nomanduz" }]}>
+    <AppShell papel="superadmin" links={[{ to: "/nomanduz", label: "Painel Nomanduz" }]}>
       <Painel />
     </AppShell>
   ),

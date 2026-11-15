@@ -5,6 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { ArrowLeft, Printer, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { GuardaSessao } from "@/components/GuardaSessao";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -95,6 +96,7 @@ function FolhaPage() {
 
   return (
     <main className="mx-auto max-w-3xl space-y-5 p-4 md:p-8">
+      <GuardaSessao papel={papel} />
       <div className="flex items-center justify-between print:hidden">
         <Button variant="ghost" asChild>
           <Link to={papel === "admin" ? "/admin/fechamento" : "/ponto/folhas"}>

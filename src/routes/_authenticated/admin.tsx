@@ -8,6 +8,7 @@ export const Route = createFileRoute("/_authenticated/admin")({
   },
   component: () => (
     <AppShell
+      papel="admin"
       links={[
         { to: "/admin", label: "Dashboard" },
         { to: "/admin/funcionarios", label: "Funcionários" },

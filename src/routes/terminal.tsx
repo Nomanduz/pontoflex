@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useBlocker, useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -89,6 +89,34 @@ function TerminalPage() {
   const [senha, setSenha] = useState("");
   const [sessao, setSessao] = useState<Sessao | null>(() => lerSessao());
   const [busy, setBusy] = useState(false);
+  const [pedirSenha, setPedirSenha] = useState(false);
+  const router = useRouter();
+
+  // Terminal desbloqueado: sair da tela (botão/gesto voltar, recarregar, outro endereço) só com a
+  // senha mestra. O diálogo de bloqueio abre no lugar da navegação.
+  useBlocker({
+    shouldBlockFn: () => {
+      setPedirSenha(true);
+      toast.info("Para sair do terminal, digite a senha mestra.");
+      return true;
+    },
+    enableBeforeUnload: () => sessao != null,
+    disabled: sessao == null,
+  });
+
+  // Se o terminal foi aberto direto (sem página anterior), o "voltar" fecharia o navegador sem
+  // passar pelo bloqueio. Uma entrada extra no histórico, criada no primeiro toque, evita isso.
+  useEffect(() => {
+    if (!sessao) return;
+    const armar = () =>
+      router.history.push(
+        window.location.pathname + window.location.search,
+        { pontoflexTerminal: true },
+        { ignoreBlocker: true },
+      );
+    window.addEventListener("pointerdown", armar, { once: true });
+    return () => window.removeEventListener("pointerdown", armar);
+  }, [sessao, router]);
 
   function trocar(s: Sessao | null) {
     salvarSessao(s);
@@ -164,7 +192,12 @@ function TerminalPage() {
             {sessao.modo === "leitura" ? "Registro de ponto" : "Cadastro facial"}
           </h1>
         </div>
-        <BloquearTerminal token={sessao.token} onBloqueado={() => trocar(null)} />
+        <BloquearTerminal
+          token={sessao.token}
+          aberto={pedirSenha}
+          setAberto={setPedirSenha}
+          onBloqueado={() => trocar(null)}
+        />
       </div>
       {sessao.modo === "leitura" ? (
         <ModoLeitura sessao={sessao} onExpirar={() => trocar(null)} />
@@ -176,9 +209,18 @@ function TerminalPage() {
 }
 
 /** Bloquear pede a senha mestra: evita que o terminal seja desligado por engano ou de propósito. */
-function BloquearTerminal({ token, onBloqueado }: { token: string; onBloqueado: () => void }) {
+function BloquearTerminal({
+  token,
+  aberto,
+  setAberto,
+  onBloqueado,
+}: {
+  token: string;
+  aberto: boolean;
+  setAberto: (v: boolean) => void;
+  onBloqueado: () => void;
+}) {
   const bloquear = useServerFn(bloquearTerminal);
-  const [aberto, setAberto] = useState(false);
   const [senha, setSenha] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -214,7 +256,8 @@ function BloquearTerminal({ token, onBloqueado }: { token: string; onBloqueado: 
         <DialogHeader>
           <DialogTitle>Bloquear terminal</DialogTitle>
           <DialogDescription>
-            Somente o responsável pode bloquear. Digite a senha mestra da empresa.
+            Somente o responsável pode bloquear ou sair do terminal. Digite a senha mestra da
+            empresa.
           </DialogDescription>
         </DialogHeader>
         <form className="space-y-4" onSubmit={enviar}>

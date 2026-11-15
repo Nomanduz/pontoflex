@@ -8,6 +8,7 @@ export const Route = createFileRoute("/_authenticated/ponto")({
   },
   component: () => (
     <AppShell
+      papel="funcionario"
       links={[
         { to: "/ponto", label: "Registrar ponto" },
         { to: "/ponto/historico", label: "Espelho" },

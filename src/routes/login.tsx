@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { empresaEmail, maskDocumento } from "@/lib/doc";
 import { getPapel } from "@/lib/session";
+import { marcasSessao } from "@/lib/sessao-politica";
 import { loginPorMatricula } from "@/lib/terminal.functions";
 import { pedirRedefinicaoSenha } from "@/lib/redefinir.functions";
 
@@ -95,6 +96,7 @@ function LoginPage() {
               : "Este acesso não é de um funcionário",
         );
       }
+      marcasSessao.iniciar();
       navigate({
         to: tipo === "admin" ? "/admin" : tipo === "superadmin" ? "/nomanduz" : "/ponto",
         replace: true,
