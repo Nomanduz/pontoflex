@@ -18,12 +18,12 @@ export const emailNomanduz = () =>
   process.env["NOMANDUZ_ADMIN_EMAIL"] || "academiadaprevencaobr@gmail.com";
 
 function remetente() {
-  return (
-    process.env["EMAIL_FROM"] ||
-    (process.env["SMTP_USER"]
-      ? `PontoFlex <${process.env["SMTP_USER"]}>`
-      : "PontoFlex <onboarding@resend.dev>")
-  );
+  if (process.env["EMAIL_FROM"]?.trim()) return process.env["EMAIL_FROM"].trim();
+  // Pelo Resend, só o domínio verificado pode enviar; o Gmail do SMTP não serve de remetente.
+  if (process.env["RESEND_API_KEY"]) return "PontoFlex <nao-responda@nomanduz.com.br>";
+  return process.env["SMTP_USER"]
+    ? `PontoFlex <${process.env["SMTP_USER"]}>`
+    : "PontoFlex <onboarding@resend.dev>";
 }
 
 async function enviar(msg: {
