@@ -43,3 +43,6 @@ src/routeTree.gen.ts
 !.env.example
 .output/
 .vercel/
+
+# Atalho local do Windows
+*.lnk

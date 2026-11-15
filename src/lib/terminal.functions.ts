@@ -205,17 +205,31 @@ export const confirmarPontoTerminal = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { supabaseAdmin, emp, lerToken } = await sessaoValida(data.token, "leitura");
     const c = lerToken<Confirmacao>("confirmar", data.confirmacao);
-    if (!c || c.e !== emp.id)
+    if (!c || c.e !== emp.id) {
+      await logTerminal(
+        supabaseAdmin,
+        emp.id,
+        "registro_negado",
+        null,
+        "Confirmação expirada (mais de 90 s) ou inválida",
+      );
       throw new Error("A confirmação expirou. Faça a leitura do rosto novamente.");
+    }
     const { registrarMarcacao } = await import("./ponto.server");
-    const r = await registrarMarcacao(supabaseAdmin, {
-      empresa: emp,
-      funcionarioId: c.f,
-      selfiePath: c.p,
-      similaridade: c.s,
-      latitude: data.latitude,
-      longitude: data.longitude,
-    });
+    let r: Awaited<ReturnType<typeof registrarMarcacao>>;
+    try {
+      r = await registrarMarcacao(supabaseAdmin, {
+        empresa: emp,
+        funcionarioId: c.f,
+        selfiePath: c.p,
+        similaridade: c.s,
+        latitude: data.latitude,
+        longitude: data.longitude,
+      });
+    } catch (e) {
+      await logTerminal(supabaseAdmin, emp.id, "registro_negado", c.f, (e as Error).message);
+      throw e;
+    }
     await logTerminal(
       supabaseAdmin,
       emp.id,
