@@ -13,7 +13,7 @@ export const Route = createFileRoute("/_authenticated/ponto")({
         { to: "/ponto", label: "Registrar ponto" },
         { to: "/ponto/historico", label: "Espelho" },
         { to: "/ponto/folhas", label: "Assinar folhas" },
-        { to: "/ponto/ajustes", label: "Esqueci o ponto" },
+        { to: "/ponto/ajustes", label: "Ajustar ponto" },
         { to: "/ponto/conta", label: "Minha senha" },
       ]}
     >

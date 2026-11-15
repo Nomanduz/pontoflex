@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { MapPin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { CampoData } from "@/components/CampoDataHora";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -78,11 +78,11 @@ function Registros() {
         </div>
         <div className="space-y-1">
           <Label>De</Label>
-          <Input type="date" value={de} onChange={(e) => setDe(e.target.value)} />
+          <CampoData value={de} onChange={(v) => v && setDe(v)} aria-label="De" />
         </div>
         <div className="space-y-1">
           <Label>Até</Label>
-          <Input type="date" value={ate} onChange={(e) => setAte(e.target.value)} />
+          <CampoData value={ate} onChange={(v) => v && setAte(v)} aria-label="Até" />
         </div>
       </div>
       <Card>

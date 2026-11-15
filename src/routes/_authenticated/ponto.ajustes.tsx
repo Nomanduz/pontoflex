@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { CampoData, CampoHora } from "@/components/CampoDataHora";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -109,7 +110,7 @@ function Ajustes() {
 
   return (
     <div className="mx-auto max-w-md space-y-4">
-      <h1 className="font-display text-2xl font-bold">Esqueci de bater o ponto</h1>
+      <h1 className="font-display text-2xl font-bold">Ajustar ponto</h1>
       <p className="text-sm text-muted-foreground">
         Informe a marcação que faltou. Ela só entra no seu espelho depois que o setor responsável
         aprovar.
@@ -135,23 +136,11 @@ function Ajustes() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label htmlFor="d">Data</Label>
-                <Input
-                  id="d"
-                  type="date"
-                  value={data}
-                  onChange={(e) => setData(e.target.value)}
-                  required
-                />
+                <CampoData id="d" value={data} onChange={setData} required />
               </div>
               <div className="space-y-1">
                 <Label htmlFor="h">Horário</Label>
-                <Input
-                  id="h"
-                  type="time"
-                  value={hora}
-                  onChange={(e) => setHora(e.target.value)}
-                  required
-                />
+                <CampoHora id="h" value={hora} onChange={setHora} required />
               </div>
             </div>
             <div className="space-y-1">

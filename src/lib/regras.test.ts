@@ -247,3 +247,24 @@ describe("segurança do servidor", () => {
     expect(normalizarCodigo(c.toLowerCase())).toBe(c.replace(/-/g, ""));
   });
 });
+
+describe("campos de data e hora no padrão brasileiro", () => {
+  it("máscara e conversão de data DD/MM/AAAA", async () => {
+    const { mascararData, dataParaIso, isoParaData } = await import("@/components/CampoDataHora");
+    expect(mascararData("15112026")).toBe("15/11/2026");
+    expect(mascararData("1511")).toBe("15/11");
+    expect(dataParaIso("15/11/2026")).toBe("2026-11-15");
+    expect(dataParaIso("31/02/2026")).toBe("");
+    expect(dataParaIso("15/11")).toBe("");
+    expect(isoParaData("2026-11-15")).toBe("15/11/2026");
+  });
+
+  it("hora sempre em 24 h", async () => {
+    const { mascararHora, horaValida } = await import("@/components/CampoDataHora");
+    expect(mascararHora("1345")).toBe("13:45");
+    expect(horaValida("13:45")).toBe("13:45");
+    expect(horaValida("08:00:00")).toBe("08:00");
+    expect(horaValida("24:00")).toBe("");
+    expect(horaValida("12:60")).toBe("");
+  });
+});

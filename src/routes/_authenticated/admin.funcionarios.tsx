@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CampoData, CampoHora } from "@/components/CampoDataHora";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
@@ -439,7 +440,10 @@ function Funcionarios() {
             {isCiclo(form.escala) && (
               <div className="space-y-1">
                 <Label>Primeiro dia de trabalho do ciclo</Label>
-                <Input type="date" value={form.escala_inicio} onChange={set("escala_inicio")} />
+                <CampoData
+                  value={form.escala_inicio}
+                  onChange={(v) => setForm((f) => ({ ...f, escala_inicio: v }))}
+                />
               </div>
             )}
             <div className="grid grid-cols-4 gap-2">
@@ -453,7 +457,12 @@ function Funcionarios() {
               ).map(([k, l]) => (
                 <div key={k} className="space-y-1">
                   <Label className="text-xs">{l}</Label>
-                  <Input type="time" value={form[k]} onChange={set(k)} className="px-1" />
+                  <CampoHora
+                    value={form[k]}
+                    onChange={(v) => setForm((f) => ({ ...f, [k]: v }))}
+                    className="px-1 text-center"
+                    aria-label={l}
+                  />
                 </div>
               ))}
             </div>
