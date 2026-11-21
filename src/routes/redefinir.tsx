@@ -140,7 +140,7 @@ function RedefinirPage() {
                 className="h-11"
               />
               <p className="text-xs text-muted-foreground">
-                12 ou mais caracteres, com maiúscula, minúscula, número e símbolo.
+                Mínimo 8 caracteres, com letras e números.
               </p>
             </div>
             <div className="space-y-2">

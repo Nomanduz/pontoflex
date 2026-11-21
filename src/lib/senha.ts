@@ -15,6 +15,7 @@ export const sugerirTrocaSenha = podeTrocarSenha;
 
 export function validarNovaSenha(s: string): string | null {
   if (s.length < 8) return "A nova senha precisa ter pelo menos 8 caracteres";
+  if (s.length > 72) return "A nova senha pode ter no máximo 72 caracteres";
   if (!/[a-zA-Z]/.test(s) || !/\d/.test(s)) return "Use letras e números na nova senha";
   return null;
 }

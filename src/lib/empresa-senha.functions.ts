@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Banco } from "@/integrations/supabase/banco";
+import { validarSenhaEmpresa } from "./cadastro.functions";
 
 const CODIGO_VALIDADE_MIN = 15;
 const MAX_TENTATIVAS = 5;
@@ -82,16 +83,8 @@ export const trocarSenhaEmpresa = createServerFn({ method: "POST" })
     if (!d?.atual) throw new Error("Informe a senha atual");
     if (!/^\d{6}$/.test(d.codigo ?? "")) throw new Error("Informe o código de 6 números");
     const n = d.nova ?? "";
-    if (
-      n.length < 12 ||
-      !/[a-z]/.test(n) ||
-      !/[A-Z]/.test(n) ||
-      !/\d/.test(n) ||
-      !/[^a-zA-Z0-9]/.test(n)
-    )
-      throw new Error(
-        "A nova senha precisa de 12+ caracteres, com maiúscula, minúscula, número e símbolo",
-      );
+    const erro = validarSenhaEmpresa(n);
+    if (erro) throw new Error(erro);
     if (d.atual === n) throw new Error("A nova senha deve ser diferente da atual");
     return d;
   })

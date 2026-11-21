@@ -4,15 +4,14 @@ import { documentoEmpresa, empresaEmail } from "./doc";
 export const DIAS_TESTE = 30;
 const VALIDADE_CODIGO_DIAS = 7;
 
+/**
+ * Senha da empresa: 8 caracteres ou mais, com letras e números. Sem teto curto, para aceitar as
+ * senhas geradas pelo navegador (o Chrome sugere cerca de 15); 72 é o limite do login.
+ */
 export function validarSenhaEmpresa(n: string): string | null {
-  if (
-    n.length < 12 ||
-    !/[a-z]/.test(n) ||
-    !/[A-Z]/.test(n) ||
-    !/\d/.test(n) ||
-    !/[^a-zA-Z0-9]/.test(n)
-  )
-    return "A senha precisa de 12+ caracteres, com maiúscula, minúscula, número e símbolo";
+  if (n.length < 8) return "A senha precisa ter pelo menos 8 caracteres";
+  if (n.length > 72) return "A senha pode ter no máximo 72 caracteres";
+  if (!/[a-zA-Z]/.test(n) || !/\d/.test(n)) return "Use letras e números na senha";
   return null;
 }
 

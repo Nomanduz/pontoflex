@@ -13,3 +13,16 @@ describe("troca de senha do funcionário", () => {
     expect(validarNovaSenha("abcd1234")).toBeNull();
   });
 });
+
+describe("senha da empresa", () => {
+  it("8+ caracteres com letras e números; aceita senhas longas do navegador", async () => {
+    const { validarSenhaEmpresa } = await import("./cadastro.functions");
+    expect(validarSenhaEmpresa("nomanduz25")).toBeNull();
+    expect(validarSenhaEmpresa("abc12345")).toBeNull();
+    expect(validarSenhaEmpresa("Xq7-mP9k-Ls2v-Wd4h")).toBeNull(); // formato sugerido pelo Chrome
+    expect(validarSenhaEmpresa("abc1234")).toMatch(/8 caracteres/);
+    expect(validarSenhaEmpresa("somenteletras")).toMatch(/letras e números/);
+    expect(validarSenhaEmpresa("12345678")).toMatch(/letras e números/);
+    expect(validarSenhaEmpresa("a1".repeat(37))).toMatch(/72/);
+  });
+});

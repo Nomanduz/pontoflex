@@ -121,7 +121,7 @@ function SenhaEmpresa() {
                   required
                 />
                 <p className="text-xs text-muted-foreground">
-                  Mínimo 12 caracteres, com maiúscula, minúscula, número e símbolo.
+                  Mínimo 8 caracteres, com letras e números.
                 </p>
               </div>
               <div className="space-y-1">
